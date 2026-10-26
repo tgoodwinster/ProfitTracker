@@ -1,0 +1,65 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+repositories { mavenCentral() }
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        profittracker {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach { options.release = 25 }
+test { useJUnitPlatform() }
+
+processResources {
+    def modVersion = project.version.toString()
+    inputs.property 'version', modVersion
+    filesMatching('fabric.mod.json') { expand version: modVersion }
+}
+
+jar { from('LICENSE') { rename { "${it}_profittracker" } } }
+
+tasks.register('verifyModJar') {
+    dependsOn tasks.jar
+    def artifact = tasks.jar.archiveFile
+    def expectedVersion = project.version.toString()
+    inputs.file(artifact)
+    doLast {
+        def jarFile = new java.util.jar.JarFile(artifact.get().asFile)
+        try {
+            def metadata = new groovy.json.JsonSlurper().parse(jarFile.getInputStream(jarFile.getJarEntry('fabric.mod.json')))
+            assert metadata.id == 'profittracker'
+            assert metadata.environment == 'client'
+            assert metadata.version == expectedVersion
+            metadata.entrypoints.client.each { name ->
+                assert jarFile.getJarEntry(name.replace('.', '/') + '.class') != null
+            }
+            assert metadata.depends.minecraft == '~26.2'
+            assert metadata.depends.java == '>=25'
+            println "Verified Fabric metadata and client entrypoint in ${artifact.get().asFile.name}"
+        } finally { jarFile.close() }
+    }
+}
+check.dependsOn tasks.named('verifyModJar')
