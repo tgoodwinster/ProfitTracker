@@ -3,7 +3,7 @@
   "id": "profittracker",
   "version": "${version}",
   "name": "ProfitTracker",
-  "description": "A conservative coal profit HUD for Hypixel SkyBlock.",
+  "description": "Coal profits, a nearby Endermite counter, and movable HUDs for Hypixel SkyBlock.",
   "authors": ["tgoodwinster"],
   "license": "MIT",
   "environment": "client",

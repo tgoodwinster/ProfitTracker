@@ -3,6 +3,11 @@ package dev.profittracker.client;
 import dev.profittracker.CoalSession;
 import dev.profittracker.CoalStock;
 import dev.profittracker.SackParser;
+import dev.profittracker.EndermiteCounter;
+import dev.profittracker.SettingsStore;
+import dev.profittracker.TrackerSettings;
+import dev.profittracker.TrackerSettings.HudPosition;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -10,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -19,6 +25,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -27,26 +34,42 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Endermite;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.PlayerTeam;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 public final class ProfitTrackerClient implements ClientModInitializer {
+    private static final Logger LOGGER = LoggerFactory.getLogger("profittracker");
+    private static final long CLOCK_ORIGIN = System.nanoTime();
     private static final Set<String> HOLLOWS_REGIONS = Set.of("Jungle", "Mithril Deposits", "Goblin Holdout",
             "Precursor Remnants", "Magma Fields", "Crystal Nucleus", "Fairy Grotto", "Jungle Temple",
             "Lost Precursor City", "Goblin Queen's Den", "Khazad-dûm");
+    private static final Set<String> END_REGIONS = Set.of("The End", "Dragon's Nest", "Void Sepulture",
+            "Zealot Bruiser Hideout");
+    private static final int ENDERMITE_RADIUS = 48;
     private final CoalSession session = new CoalSession();
+    private final EndermiteCounter endermites = new EndermiteCounter();
     private final BazaarClient bazaar = new BazaarClient();
+    private final SettingsStore settingsStore = new SettingsStore(FabricLoader.getInstance().getConfigDir().resolve("profittracker.json"));
+    private TrackerSettings settings = new TrackerSettings();
     private final LinkedHashMap<BlockPos, Long> targets = new LinkedHashMap<>();
     private boolean inHollows;
+    private boolean inEnd;
     private int ticks;
     private Object lastLevel;
+    private long titleUntil;
+    private Screen pendingScreen;
 
     @Override
     public void onInitializeClient() {
+        try { settings = settingsStore.load(); }
+        catch (IOException ex) { LOGGER.warn("Could not load tracker settings; using defaults", ex); }
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) -> dispatcher.register(
                 literal("profit")
                         .executes(context -> feedback("/profit start | pause | reset"))
@@ -61,6 +84,15 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                         .then(literal("reset").executes(context -> {
                             session.reset(now(), inventory());
                             return feedback("Session reset; " + (session.running() ? "running" : "paused") + ".");
+                        }))));
+
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) -> dispatcher.register(
+                literal("tm")
+                        .executes(context -> openSettings(0))
+                        .then(literal("endermites").executes(context -> openSettings(1)))
+                        .then(literal("hud").executes(context -> {
+                            pendingScreen = new HudEditorScreen(this, null);
+                            return 1;
                         }))));
 
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
@@ -87,6 +119,10 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             session.pause(now(), inventory());
             targets.clear();
             inHollows = false;
+            inEnd = false;
+            endermites.clear();
+            titleUntil = 0;
+            pendingScreen = null;
             lastLevel = null;
         });
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
@@ -99,9 +135,15 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             session.interrupt(time, inventory());
             targets.clear();
             inHollows = false;
+            inEnd = false;
+            endermites.clear();
+            titleUntil = 0;
             lastLevel = client.level;
         }
-        if (++ticks % 20 == 0) inHollows = isCrystalHollows(client);
+        if (++ticks % 20 == 0) {
+            inHollows = isCrystalHollows(client);
+            inEnd = isTheEnd(client);
+        }
         boolean allowed = inHollows && client.player != null && client.gui.screen() == null && !nearbyCoalDrops(client);
         boolean brokeCoal = false;
         if (allowed) {
@@ -121,6 +163,23 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         } else targets.clear();
         session.tick(time, inventory(), allowed, brokeCoal);
         if (inHollows) bazaar.refresh(time);
+        if (!settings.endermitesEnabled || !inEnd || client.player == null) {
+            endermites.clear();
+            titleUntil = 0;
+        } else if (ticks % 5 == 0) {
+            var nearby = client.level.getEntitiesOfClass(Endermite.class,
+                    client.player.getBoundingBox().inflate(ENDERMITE_RADIUS),
+                    mite -> mite.isAlive() && !mite.isRemoved()
+                            && mite.distanceToSqr(client.player) <= ENDERMITE_RADIUS * ENDERMITE_RADIUS);
+            boolean crossed = endermites.update(nearby.stream().map(Endermite::getUUID).toList(), settings.endermiteTarget, time);
+            if (crossed && settings.endermiteTitle) titleUntil = time + 2_500;
+            if (!endermites.atTarget() || !settings.endermiteTitle) titleUntil = 0;
+        }
+        // Chat closes its screen after running a command. Open ours on the following tick.
+        if (pendingScreen != null) {
+            client.gui.setScreen(pendingScreen);
+            pendingScreen = null;
+        }
     }
 
     private static boolean isCoal(Minecraft client, BlockPos pos) {
@@ -128,10 +187,16 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         return state.is(Blocks.COAL_ORE) || state.is(Blocks.DEEPSLATE_COAL_ORE);
     }
 
-    private static boolean isCrystalHollows(Minecraft client) {
+    private static boolean isSkyBlock(Minecraft client) {
         if (client.level == null || client.player == null || client.getCurrentServer() == null) return false;
         String host = client.getCurrentServer().ip.toLowerCase(Locale.ROOT).split(":")[0];
         if (!host.equals("hypixel.net") && !host.endsWith(".hypixel.net")) return false;
+        var objective = client.level.getScoreboard().getDisplayObjective(DisplaySlot.SIDEBAR);
+        return objective != null && SackParser.clean(objective.getDisplayName().getString()).contains("SKYBLOCK");
+    }
+
+    private static boolean isCrystalHollows(Minecraft client) {
+        if (!isSkyBlock(client)) return false;
         var scoreboard = client.level.getScoreboard();
         var objective = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
         if (objective == null || !SackParser.clean(objective.getDisplayName().getString()).contains("SKYBLOCK")) return false;
@@ -148,6 +213,25 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             // The sidebar normally names a subregion rather than the whole island.
             int marker = line.indexOf('⏣');
             if (marker >= 0 && HOLLOWS_REGIONS.contains(line.substring(marker + 1).trim())) return true;
+        }
+        return false;
+    }
+
+    private static boolean isTheEnd(Minecraft client) {
+        if (!isSkyBlock(client)) return false;
+        if (client.getConnection() != null) {
+            for (var info : client.getConnection().getOnlinePlayers()) {
+                var name = info.getTabListDisplayName();
+                if (name != null && SackParser.clean(name.getString()).trim().equals("Area: The End")) return true;
+            }
+        }
+        var scoreboard = client.level.getScoreboard();
+        var objective = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
+        for (var score : scoreboard.listPlayerScores(objective)) {
+            var team = scoreboard.getPlayersTeam(score.owner());
+            String line = SackParser.clean(PlayerTeam.formatNameForTeam(team, Component.literal(score.owner())).getString());
+            int marker = line.indexOf('⏣');
+            if (marker >= 0 && END_REGIONS.contains(line.substring(marker + 1).trim())) return true;
         }
         return false;
     }
@@ -203,32 +287,92 @@ public final class ProfitTrackerClient implements ClientModInitializer {
 
     private void render(GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
-        if (!inHollows || client.player == null || client.gui.screen() != null) return;
+        if (client.player == null || client.gui.screen() != null) return;
+        if (inHollows && settings.coalHudEnabled) drawPanel(graphics, coalLines(), settings.coalPosition, false, false);
+        if (inEnd && settings.endermitesEnabled) {
+            drawPanel(graphics, endermiteLines(), settings.endermitePosition, endermites.atTarget(), false);
+            if (settings.endermiteTitle && titleUntil > now()) {
+                int center = graphics.guiWidth() / 2;
+                int y = graphics.guiHeight() / 4;
+                graphics.fill(center - 123, y - 6, center + 123, y + 29, 0xB010151C);
+                graphics.centeredText(client.font, "Endermite target reached!", center, y, 0xFF69F09C);
+                graphics.centeredText(client.font, "Kill Endermites to make room", center, y + 14, 0xFFFFFFFF);
+            }
+        }
+    }
+
+    List<String> coalLines() {
         var prices = bazaar.usable();
         String state = !session.running() ? "Paused: /profit start"
                 : session.settling(now()) ? "Settling transfers (10s)" : "Running | observed gains only";
         double coins = prices == null ? 0 : prices.value(session.shares());
         double hours = session.elapsedMillis() / 3_600_000.0;
         long seconds = session.elapsedMillis() / 1000;
-        List<String> lines = List.of("ProfitTracker | Coal", state,
+        return List.of("ProfitTracker | Coal", state,
                 "Est. coins: " + (prices == null ? "unavailable" : number(coins)),
                 "Est. coins/h: " + (prices == null || hours == 0 ? "--" : number(coins / hours)),
                 "Coal: " + String.format(Locale.US, "%,d", session.coal()) + " (raw equivalent)",
                 String.format(Locale.ROOT, "Session: %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60),
                 bazaar.status());
-        int width = lines.stream().mapToInt(client.font::width).max().orElse(160) + 12;
-        int x = 6;
-        int y = Math.max(6, Math.min(40, graphics.guiHeight() - lines.size() * 12 - 10));
-        graphics.fill(x, y, x + width, y + lines.size() * 12 + 8, 0xA010151C);
+    }
+
+    List<String> endermiteLines() {
+        String total = settings.endermiteTarget == 0 ? Integer.toString(endermites.count())
+                : endermites.count() + " / " + settings.endermiteTarget;
+        return List.of("Endermites nearby: " + total,
+                endermites.atTarget() ? "Target reached - ready to kill" : "Living mobs within 48 blocks",
+                settings.endermiteTarget == 0 ? "Set your alert threshold in /tm" : "Includes other players' mobs");
+    }
+
+    int panelWidth(List<String> lines, int screenWidth) {
+        return Math.min(screenWidth, lines.stream().mapToInt(Minecraft.getInstance().font::width).max().orElse(160) + 12);
+    }
+
+    int panelHeight(List<String> lines) { return lines.size() * 12 + 8; }
+
+    void drawPanel(GuiGraphicsExtractor graphics, List<String> lines, HudPosition position, boolean green, boolean editing) {
+        var client = Minecraft.getInstance();
+        int width = panelWidth(lines, graphics.guiWidth());
+        int height = panelHeight(lines);
+        int x = position.left(graphics.guiWidth(), width);
+        int y = position.top(graphics.guiHeight(), height);
+        graphics.fill(x, y, x + width, y + height, editing ? 0xD010151C : 0xA010151C);
+        if (editing) {
+            graphics.fill(x, y, x + width, y + 1, 0xFF69B8F0);
+            graphics.fill(x, y + height - 1, x + width, y + height, 0xFF69B8F0);
+            graphics.fill(x, y, x + 1, y + height, 0xFF69B8F0);
+            graphics.fill(x + width - 1, y, x + width, y + height, 0xFF69B8F0);
+        }
         for (int i = 0; i < lines.size(); i++) {
-            graphics.text(client.font, lines.get(i), x + 6, y + 5 + i * 12,
-                    i == 0 ? 0xFFFFD166 : i == 6 ? 0xFFB7C5D3 : 0xFFF3F6FA);
+            graphics.text(client.font, client.font.plainSubstrByWidth(lines.get(i), Math.max(0, width - 12)), x + 6, y + 5 + i * 12,
+                    green ? 0xFF69F09C : i == 0 ? 0xFFFFD166 : i == lines.size() - 1 ? 0xFFB7C5D3 : 0xFFF3F6FA);
         }
     }
 
+    TrackerSettings settings() { return settings; }
+    boolean coalRunning() { return session.running(); }
+    boolean endermitesAtTarget() { return endermites.atTarget(); }
+
+    void toggleCoal() {
+        if (session.running()) session.pause(now(), inventory());
+        else session.start(now(), inventory());
+    }
+
+    void resetCoal() { session.reset(now(), inventory()); }
+
+    boolean saveSettings() {
+        try { settingsStore.save(settings); return true; }
+        catch (IOException ex) { LOGGER.error("Could not save tracker settings", ex); return false; }
+    }
+
+    private int openSettings(int tab) {
+        pendingScreen = new TrackerScreen(this, tab);
+        return 1;
+    }
+
     private static String number(double value) { return String.format(Locale.US, "%,.0f", value); }
-    private static long now() { return System.nanoTime() / 1_000_000; }
-    private static int feedback(String message) {
+    private static long now() { return (System.nanoTime() - CLOCK_ORIGIN) / 1_000_000; }
+    static int feedback(String message) {
         var player = Minecraft.getInstance().player;
         if (player != null) player.sendSystemMessage(Component.literal("[ProfitTracker] " + message));
         return 1;

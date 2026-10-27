@@ -1,18 +1,22 @@
 # ProfitTracker
 
-A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, focused on coal
-mining in Hypixel SkyBlock's Crystal Hollows. No API key or server installation.
+A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, with coal profit
+tracking in the Crystal Hollows and a nearby Endermite counter in The End.
+No API key or server installation.
 
-The top-left HUD shows estimated coins, coins per hour, coal mined (raw equivalents),
-and active session duration. It hides with the vanilla HUD, in menus, and outside
-the Crystal Hollows. Nothing changes your controls or automates mining.
+The movable coal HUD shows estimated coins, coins per hour, coal mined (raw
+equivalents), and active session duration. The Endermite HUD turns green at your
+chosen threshold and can show a brief title alert. Both hide with the vanilla HUD
+and in menus, and appear only in their relevant SkyBlock areas. Nothing automates
+mining or combat.
 
 ## Download and install
 
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **ProfitTracker-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **profittracker-1.0.0.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **profittracker-1.1.0.jar** into your Minecraft `mods` folder.
+   Remove the older ProfitTracker JAR first; do not install both versions.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
 
@@ -22,6 +26,9 @@ Artifacts are retained for 90 days; rerun the workflow if an old download expire
 
 ## Use
 
+- `/tm` — open settings with **Coal**, **Endermites**, and **HUD** tabs.
+- `/tm endermites` — open the Endermites settings tab directly.
+- `/tm hud` — drag either HUD to reposition it; **Done** or **Escape** saves.
 - `/profit start` — start/resume a session. Sessions initially start paused.
 - `/profit pause` — stop tracking and freeze elapsed time, retaining confirmed gains.
 - `/profit reset` — clear totals and elapsed time; preserve running/paused state.
@@ -36,6 +43,38 @@ pauses the session. Sessions are intentionally not saved to disk.
 
 The timer counts running time in the Crystal Hollows with no menu open. It includes
 idle time; it does not guess how much time you actually spent swinging a pickaxe.
+
+### Endermite counter
+
+In **The End**, the counter automatically shows **living Endermites within 48 blocks**,
+refreshing four times per second. Kills, despawns, and mobs leaving range lower the
+count. World changes and disconnects clear it.
+
+The alert threshold defaults to **25**, as requested. To change it, open
+`/tm endermites`, enter your spawn-cap number in **Alert threshold**, and click
+**Apply threshold**. At or above that number, the counter turns green and the
+optional **Endermite target reached!** title appears for 2.5 seconds. It fires once
+per crossing, then rearms after the count stays below the target for one second.
+You can disable the title or the whole Endermite tracker independently of coal.
+
+**The client does not receive Endermite ownership or an authoritative personal
+spawn-cap counter.** This is a nearby live-mob count, not an exact count of mobs
+you personally spawned. It includes other players' Endermites and omits unloaded
+or out-of-range mobs. It never estimates spawns from the number of blocks mined.
+The threshold is your chosen target, not a cap reported by the server. It is
+configurable from 0–200; **0** disables threshold alerts and green highlighting.
+
+### Settings and HUD layout
+
+The **Coal** tab controls HUD visibility and has start/pause/reset session buttons.
+Hiding the coal HUD does not stop a running session. The **HUD** tab opens the drag
+editor or restores default positions. The editor shows both previews even when a
+tracker is disabled or you are outside its island. Positions stay on screen when
+window size or GUI scale changes.
+
+Preferences, threshold, and positions persist locally in `config/profittracker.json`.
+They are separate from the in-memory coal session. Settings screens do not pause
+multiplayer gameplay; you should be somewhere safe when adjusting the layout.
 
 ## Accounting and limits
 
@@ -81,7 +120,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/profittracker-1.0.0.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/profittracker-1.1.0.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -89,8 +128,8 @@ published class names directly, with no legacy Yarn/remapping configuration.
 `./gradlew runClient` launches the development client. A display/OpenGL environment
 and your own legitimate Minecraft login are needed to test on Hypixel. Unit tests
 exercise compaction, initial stock, recipe-boundary attribution, delayed transfers,
-sack parsing, session controls, and price failures. They do not substitute for a
-live-server test.
+sack parsing, session controls, price failures, Endermite threshold/rearm behavior,
+config persistence, and HUD position clamping. They do not substitute for a live-server test.
 
 ### In-game acceptance check
 
@@ -102,6 +141,14 @@ live-server test.
 5. Repeat with an Enchanted Mining Sack. Transfer inventory into sacks, withdraw
    coal, open menus, pause, and reset: no transfer should add mining profit.
 6. Disconnect the network/API: counts continue; prices eventually become unavailable.
+7. Open `/tm`, switch all three tabs, and change preferences. Reopen the screen and
+   restart the client to check they persist.
+8. Use `/tm hud` to drag both previews, save, and change GUI scale. Each panel should
+   stay on screen. Reset positions from the HUD tab.
+9. In The End, set a small threshold you can test. Observe Endermites, reach the
+   threshold, and confirm green text and one title. Kill enough to stay below the
+   threshold for a second, then reach it again: one new title. Move away and change
+   islands: the nearby count should fall/clear rather than retaining old mobs.
 
 Live Hypixel acceptance requires an authenticated Minecraft session; the headless
 build environment cannot verify actual server-side notification timing.

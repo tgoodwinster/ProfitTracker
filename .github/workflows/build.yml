@@ -22,7 +22,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ProfitTracker-Minecraft-26.2
-          path: build/libs/profittracker-1.0.0.jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
           if-no-files-found: error
           retention-days: 90
       - name: Upload test results
