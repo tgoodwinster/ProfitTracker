@@ -17,7 +17,7 @@ final class TrackerScreen extends Screen {
     private String error = "";
 
     TrackerScreen(ProfitTrackerClient mod, int tab) {
-        super(Component.literal("ProfitTracker"));
+        super(Component.literal("TgoodUtils"));
         this.mod = mod;
         this.tab = tab;
     }
@@ -133,7 +133,7 @@ final class TrackerScreen extends Screen {
             line(graphics, "Living Endermites within 48 blocks in The End.", 163);
             line(graphics, "Includes other players' mobs. Set your own cap.", 177);
         } else {
-            line(graphics, "Or use /tm hud to move both counters.", 127);
+            line(graphics, "Or use /tu hud to move both counters.", 127);
             line(graphics, "Drag a panel. Escape or Done saves it.", 142);
         }
         if (!error.isEmpty()) graphics.centeredText(font, error, width / 2, top + 190, 0xFFFF7777);

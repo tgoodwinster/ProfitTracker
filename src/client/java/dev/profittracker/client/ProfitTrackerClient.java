@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 public final class ProfitTrackerClient implements ClientModInitializer {
-    private static final Logger LOGGER = LoggerFactory.getLogger("profittracker");
+    private static final Logger LOGGER = LoggerFactory.getLogger("tgoodutils");
     private static final long CLOCK_ORIGIN = System.nanoTime();
     private static final Set<String> HOLLOWS_REGIONS = Set.of("Jungle", "Mithril Deposits", "Goblin Holdout",
             "Precursor Remnants", "Magma Fields", "Crystal Nucleus", "Fairy Grotto", "Jungle Temple",
@@ -87,7 +87,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                         }))));
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) -> dispatcher.register(
-                literal("tm")
+                literal("tu")
                         .executes(context -> openSettings(0))
                         .then(literal("endermites").executes(context -> openSettings(1)))
                         .then(literal("hud").executes(context -> {
@@ -308,7 +308,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         double coins = prices == null ? 0 : prices.value(session.shares());
         double hours = session.elapsedMillis() / 3_600_000.0;
         long seconds = session.elapsedMillis() / 1000;
-        return List.of("ProfitTracker | Coal", state,
+        return List.of("TgoodUtils | Coal", state,
                 "Est. coins: " + (prices == null ? "unavailable" : number(coins)),
                 "Est. coins/h: " + (prices == null || hours == 0 ? "--" : number(coins / hours)),
                 "Coal: " + String.format(Locale.US, "%,d", session.coal()) + " (raw equivalent)",
@@ -321,7 +321,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                 : endermites.count() + " / " + settings.endermiteTarget;
         return List.of("Endermites nearby: " + total,
                 endermites.atTarget() ? "Target reached - ready to kill" : "Living mobs within 48 blocks",
-                settings.endermiteTarget == 0 ? "Set your alert threshold in /tm" : "Includes other players' mobs");
+                settings.endermiteTarget == 0 ? "Set your alert threshold in /tu" : "Includes other players' mobs");
     }
 
     int panelWidth(List<String> lines, int screenWidth) {
@@ -374,7 +374,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     private static long now() { return (System.nanoTime() - CLOCK_ORIGIN) / 1_000_000; }
     static int feedback(String message) {
         var player = Minecraft.getInstance().player;
-        if (player != null) player.sendSystemMessage(Component.literal("[ProfitTracker] " + message));
+        if (player != null) player.sendSystemMessage(Component.literal("[TgoodUtils] " + message));
         return 1;
     }
 }

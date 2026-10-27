@@ -21,7 +21,7 @@ jobs:
       - name: Upload installable mod
         uses: actions/upload-artifact@v4
         with:
-          name: ProfitTracker-Minecraft-26.2
+          name: TgoodUtils-Minecraft-26.2
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar

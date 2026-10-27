@@ -1,4 +1,4 @@
-# ProfitTracker
+# TgoodUtils
 
 A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, with coal profit
 tracking in the Crystal Hollows and a nearby Endermite counter in The End.
@@ -14,9 +14,9 @@ mining or combat.
 
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
-   **ProfitTracker-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **profittracker-1.1.0.jar** into your Minecraft `mods` folder.
-   Remove the older ProfitTracker JAR first; do not install both versions.
+   **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
+3. Extract the ZIP and put **tgoodutils-1.1.1.jar** into your Minecraft `mods` folder.
+   Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
 
@@ -26,9 +26,9 @@ Artifacts are retained for 90 days; rerun the workflow if an old download expire
 
 ## Use
 
-- `/tm` — open settings with **Coal**, **Endermites**, and **HUD** tabs.
-- `/tm endermites` — open the Endermites settings tab directly.
-- `/tm hud` — drag either HUD to reposition it; **Done** or **Escape** saves.
+- `/tu` — open settings with **Coal**, **Endermites**, and **HUD** tabs.
+- `/tu endermites` — open the Endermites settings tab directly.
+- `/tu hud` — drag either HUD to reposition it; **Done** or **Escape** saves.
 - `/profit start` — start/resume a session. Sessions initially start paused.
 - `/profit pause` — stop tracking and freeze elapsed time, retaining confirmed gains.
 - `/profit reset` — clear totals and elapsed time; preserve running/paused state.
@@ -51,7 +51,7 @@ refreshing four times per second. Kills, despawns, and mobs leaving range lower 
 count. World changes and disconnects clear it.
 
 The alert threshold defaults to **25**, as requested. To change it, open
-`/tm endermites`, enter your spawn-cap number in **Alert threshold**, and click
+`/tu endermites`, enter your spawn-cap number in **Alert threshold**, and click
 **Apply threshold**. At or above that number, the counter turns green and the
 optional **Endermite target reached!** title appears for 2.5 seconds. It fires once
 per crossing, then rearms after the count stays below the target for one second.
@@ -120,7 +120,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/profittracker-1.1.0.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.1.1.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -141,9 +141,9 @@ config persistence, and HUD position clamping. They do not substitute for a live
 5. Repeat with an Enchanted Mining Sack. Transfer inventory into sacks, withdraw
    coal, open menus, pause, and reset: no transfer should add mining profit.
 6. Disconnect the network/API: counts continue; prices eventually become unavailable.
-7. Open `/tm`, switch all three tabs, and change preferences. Reopen the screen and
+7. Open `/tu`, switch all three tabs, and change preferences. Reopen the screen and
    restart the client to check they persist.
-8. Use `/tm hud` to drag both previews, save, and change GUI scale. Each panel should
+8. Use `/tu hud` to drag both previews, save, and change GUI scale. Each panel should
    stay on screen. Reset positions from the HUD tab.
 9. In The End, set a small threshold you can test. Observe Endermites, reach the
    threshold, and confirm green text and one title. Kill enough to stay below the

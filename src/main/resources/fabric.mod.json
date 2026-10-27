@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "profittracker",
   "version": "${version}",
-  "name": "ProfitTracker",
+  "name": "TgoodUtils",
   "description": "Coal profits, a nearby Endermite counter, and movable HUDs for Hypixel SkyBlock.",
   "authors": ["tgoodwinster"],
   "license": "MIT",

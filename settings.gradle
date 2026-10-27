@@ -4,4 +4,4 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-rootProject.name = 'profittracker'
+rootProject.name = 'tgoodutils'

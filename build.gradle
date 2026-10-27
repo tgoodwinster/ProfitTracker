@@ -39,7 +39,7 @@ processResources {
     filesMatching('fabric.mod.json') { expand version: modVersion }
 }
 
-jar { from('LICENSE') { rename { "${it}_profittracker" } } }
+jar { from('LICENSE') { rename { "${it}_tgoodutils" } } }
 
 tasks.register('verifyModJar') {
     dependsOn tasks.jar
@@ -51,6 +51,7 @@ tasks.register('verifyModJar') {
         try {
             def metadata = new groovy.json.JsonSlurper().parse(jarFile.getInputStream(jarFile.getJarEntry('fabric.mod.json')))
             assert metadata.id == 'profittracker'
+            assert metadata.name == 'TgoodUtils'
             assert metadata.environment == 'client'
             assert metadata.version == expectedVersion
             metadata.entrypoints.client.each { name ->

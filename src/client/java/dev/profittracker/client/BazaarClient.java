@@ -13,11 +13,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 final class BazaarClient {
-    private static final Logger LOGGER = LoggerFactory.getLogger("profittracker");
+    private static final Logger LOGGER = LoggerFactory.getLogger("tgoodutils");
     private static final URI ENDPOINT = URI.create("https://api.hypixel.net/v2/skyblock/bazaar");
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final java.util.concurrent.ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "ProfitTracker-Bazaar");
+        Thread thread = new Thread(task, "TgoodUtils-Bazaar");
         thread.setDaemon(true);
         return thread;
     });
@@ -33,7 +33,7 @@ final class BazaarClient {
         worker.execute(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder(ENDPOINT).timeout(Duration.ofSeconds(15))
-                        .header("User-Agent", "ProfitTracker/1.0.0").GET().build();
+                        .header("User-Agent", "TgoodUtils/1.1.1").GET().build();
                 HttpResponse<java.io.InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
                 try (var body = response.body()) {
                     if (response.statusCode() != 200) throw new IOException("HTTP " + response.statusCode());
