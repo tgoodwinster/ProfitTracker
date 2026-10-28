@@ -59,6 +59,21 @@ class TrackerSettingsTest {
         assertEquals("{broken", Files.readString(file));
     }
 
+    @Test void unchangedGuiSavesDoNotRewriteTheConfigFile() throws IOException {
+        var file = folder.resolve("settings.json");
+        var store = new SettingsStore(file);
+        var settings = new TrackerSettings();
+        store.save(settings);
+        var marker = java.nio.file.attribute.FileTime.fromMillis(1_234_000);
+        Files.setLastModifiedTime(file, marker);
+        store.save(settings);
+        assertEquals(marker, Files.getLastModifiedTime(file));
+        settings.endermiteRange = 64;
+        store.save(settings);
+        assertEquals(64, store.load().endermiteRange);
+        assertNotEquals(marker, Files.getLastModifiedTime(file));
+    }
+
     @Test void draggingClampsAllEdgesAndSurvivesGuiScaling() {
         var position = new TrackerSettings.HudPosition(0, 0);
         position.moveTo(500, -10, 400, 300, 100, 40);

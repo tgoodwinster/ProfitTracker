@@ -74,6 +74,11 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     private int ticks;
     private Object lastLevel;
     private Screen pendingScreen;
+    private List<String> coalHudText;
+    private long nextCoalHudText;
+    private List<String> endermiteHudText;
+    private int displayedEndermites = -1;
+    private int displayedTarget = -1;
 
     @Override
     public void onInitializeClient() {
@@ -170,7 +175,8 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             inHollows = isCrystalHollows(client);
             inEnd = isTheEnd(client);
         }
-        boolean allowed = inHollows && client.player != null && client.gui.screen() == null && !nearbyCoalDrops(client);
+        boolean allowed = session.running() && inHollows && client.player != null
+                && client.gui.screen() == null && !nearbyCoalDrops(client);
         boolean brokeCoal = false;
         if (allowed) {
             if (client.options.keyAttack.isDown() && client.hitResult instanceof BlockHitResult hit
@@ -187,7 +193,8 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                 }
             }
         } else targets.clear();
-        session.tick(time, inventory(), allowed, brokeCoal);
+        // Inactive sessions do not need inventory baselines; the quarantine rebaselines on resume.
+        session.tick(time, allowed ? inventory() : CoalStock.ZERO, allowed, brokeCoal);
         if (inHollows) bazaar.refresh(time);
         if (!settings.endermitesEnabled || !inEnd || client.player == null) {
             endermites.clear();
@@ -284,7 +291,9 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     }
 
     private static CoalStock stockOf(ItemStack stack) {
-        if (stack.isEmpty()) return CoalStock.ZERO;
+        // Hypixel's item metadata confirms all four supported coal forms use these two materials.
+        // Never deep-copy unrelated gear/bag NBT just to discover it is not coal.
+        if (stack.isEmpty() || (!stack.is(Items.COAL) && !stack.is(Items.COAL_BLOCK))) return CoalStock.ZERO;
         String id = "";
         var data = stack.get(DataComponents.CUSTOM_DATA);
         if (data != null) {
@@ -322,24 +331,32 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     }
 
     List<String> coalLines() {
+        long time = now();
+        if (coalHudText != null && time < nextCoalHudText) return coalHudText;
+        nextCoalHudText = time + 250;
         var prices = bazaar.usable();
         String state = !session.running() ? "Paused: /profit start"
                 : session.settling(now()) ? "Settling transfers (10s)" : "Running | observed gains only";
         double coins = prices == null ? 0 : prices.value(session.shares());
         double hours = session.elapsedMillis() / 3_600_000.0;
         long seconds = session.elapsedMillis() / 1000;
-        return List.of("TgoodUtils | Coal", state,
+        coalHudText = List.of("TgoodUtils | Coal", state,
                 "Est. coins: " + (prices == null ? "unavailable" : number(coins)),
                 "Est. coins/h: " + (prices == null || hours == 0 ? "--" : number(coins / hours)),
                 "Coal: " + String.format(Locale.US, "%,d", session.coal()) + " (raw equivalent)",
                 String.format(Locale.ROOT, "Session: %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60),
                 bazaar.status());
+        return coalHudText;
     }
 
     List<String> endermiteLines() {
+        if (endermiteHudText != null && displayedEndermites == endermites.count() && displayedTarget == settings.endermiteTarget) return endermiteHudText;
+        displayedEndermites = endermites.count();
+        displayedTarget = settings.endermiteTarget;
         String total = settings.endermiteTarget == 0 ? Integer.toString(endermites.count())
                 : endermites.count() + " / " + settings.endermiteTarget;
-        return List.of("Endermites: " + total);
+        endermiteHudText = List.of("Endermites: " + total);
+        return endermiteHudText;
     }
 
     int panelWidth(List<String> lines, int screenWidth) {

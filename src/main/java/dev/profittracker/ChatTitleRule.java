@@ -30,13 +30,17 @@ public final class ChatTitleRule {
     }
 
     public boolean matches(String message) {
+        String normalized = clean(message);
+        return matchesNormalized(normalized, normalized.toLowerCase(Locale.ROOT));
+    }
+
+    boolean matchesNormalized(String normalized, String lowerCase) {
         if (!enabled) return false;
         String needle = clean(target);
         if (needle.isEmpty()) return false;
-        String haystack = clean(message);
+        String haystack = ignoreCase ? lowerCase : normalized;
         if (ignoreCase) {
             needle = needle.toLowerCase(Locale.ROOT);
-            haystack = haystack.toLowerCase(Locale.ROOT);
         }
         return exact ? haystack.equals(needle) : haystack.contains(needle);
     }

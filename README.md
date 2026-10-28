@@ -16,7 +16,7 @@ automates mining or combat.
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.2.0.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.2.1.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -152,6 +152,26 @@ observed compacted portions use their enchanted product's price; session totals
 revalue when prices refresh. Failed refreshes retain clearly labelled cached prices
 for at most five minutes, then show **unavailable**. Counts continue without prices.
 
+## Performance and troubleshooting
+
+Coal inventory polling runs only while that session is active in the Crystal
+Hollows. Unrelated gear/bag metadata is never cloned by the coal scanner. HUD text
+is cached rather than reformatted every frame. Endermite scans run four times per
+second and inspect already-loaded entities only; they do not load chunks.
+
+Bazaar connection setup, downloads, and parsing run on a separate worker, never
+the Minecraft tick/render thread. Requests have a 15-second header/body deadline
+and an 8 MB limit. The parser streams past unrelated products instead of building
+a JSON tree of the entire market. Unchanged settings are not repeatedly rewritten.
+Settings are saved only through the GUI, not polled from disk during gameplay.
+
+These bounds reduce avoidable work; they cannot establish what caused a specific
+freeze. If one recurs, record the approximate time, duration, mod version, allocated
+RAM, and whether the camera/UI froze or only the world stopped updating. Check
+`logs/latest.log`, the F3 memory graph, and a Java Flight Recorder profile if
+available. The mod does not change Minecraft's gameplay connection or send custom
+packets. Public Bazaar requests use a separate HTTPS connection.
+
 ## Build
 
 Install a Java 25 JDK, then run:
@@ -160,7 +180,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.2.0.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.2.1.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.

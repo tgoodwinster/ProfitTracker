@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 public final class SettingsStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path file;
+    private String lastWritten;
 
     public SettingsStore(Path file) { this.file = file; }
 
@@ -29,16 +30,19 @@ public final class SettingsStore {
 
     public void save(TrackerSettings settings) throws IOException {
         settings.sanitize();
+        String serialized = GSON.toJson(settings);
+        if (serialized.equals(lastWritten)) return;
         Path folder = file.toAbsolutePath().getParent();
         Files.createDirectories(folder);
         Path temporary = Files.createTempFile(folder, "profittracker-", ".tmp");
         try {
-            Files.writeString(temporary, GSON.toJson(settings), StandardCharsets.UTF_8);
+            Files.writeString(temporary, serialized, StandardCharsets.UTF_8);
             try {
                 Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
                 Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
             }
+            lastWritten = serialized;
         } finally { Files.deleteIfExists(temporary); }
     }
 }

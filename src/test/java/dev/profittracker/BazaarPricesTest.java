@@ -25,4 +25,18 @@ class BazaarPricesTest {
         assertThrows(RuntimeException.class, () -> BazaarPrices.parse(response("[{\"pricePerUnit\":7,\"amount\":100}]", 100000), 500001));
         assertThrows(RuntimeException.class, () -> BazaarPrices.parse(response("[{\"pricePerUnit\":7,\"amount\":100}]", 200000), 100000));
     }
+
+    @Test void streamingParserSkipsUnrelatedProductsAndAcceptsReorderedRootFields() {
+        String product = "{\"extra\":[1,{\"lots\":[2,3]}],\"sell_summary\":[{\"amount\":100,\"orders\":2,\"pricePerUnit\":9}]}";
+        String json = "{\"products\":{\"DIAMOND\":{\"ignored\":[{\"pricePerUnit\":99999}]},\"COAL\":"
+                + product + ",\"ENCHANTED_COAL\":" + product + ",\"ENCHANTED_COAL_BLOCK\":" + product
+                + "},\"lastUpdated\":100000,\"success\":true}";
+        assertEquals(9, BazaarPrices.parse(json, 100000).coal());
+    }
+
+    @Test void malformedOrIncompleteOrdersAreStillRejected() {
+        assertThrows(RuntimeException.class, () -> BazaarPrices.parse(response("[{\"amount\":100}]", 100000), 100000));
+        assertThrows(RuntimeException.class, () -> BazaarPrices.parse(response("[{\"pricePerUnit\":7}]", 100000), 100000));
+        assertThrows(RuntimeException.class, () -> BazaarPrices.parse("{\"success\":true,\"lastUpdated\":100000,\"products\":{}}", 100000));
+    }
 }

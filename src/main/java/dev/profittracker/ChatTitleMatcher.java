@@ -10,8 +10,11 @@ public final class ChatTitleMatcher {
     private final Map<String, Long> lastFired = new HashMap<>();
 
     public Optional<ChatTitleRule> match(List<ChatTitleRule> rules, String message, long now) {
+        if (rules.isEmpty()) return Optional.empty();
+        String normalized = ChatTitleRule.clean(message);
+        String lowerCase = normalized.toLowerCase(java.util.Locale.ROOT);
         for (var rule : rules) {
-            if (!rule.matches(message)) continue;
+            if (!rule.matchesNormalized(normalized, lowerCase)) continue;
             Long previous = lastFired.get(rule.id);
             if (previous != null && now - previous < 2_000) return Optional.empty();
             lastFired.put(rule.id, now);

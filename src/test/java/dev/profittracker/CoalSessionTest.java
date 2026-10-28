@@ -24,6 +24,20 @@ class CoalSessionTest {
         assertEquals(0, session.coal());
     }
 
+    @Test void inactivePollingCanSkipInventoryWithoutCountingExistingStockOnResume() {
+        var session = begin(EMPTY);
+        session.tick(10_050, new CoalStock(64, 0, 0), true, true);
+        settle(session, new CoalStock(64, 0, 0));
+        assertEquals(64, session.coal());
+        session.tick(17_050, EMPTY, false, false); // No inventory reads outside active coal tracking.
+        var existing = new CoalStock(900, 0, 0);
+        session.tick(17_100, existing, true, false);
+        session.tick(27_000, existing, true, false);
+        session.tick(28_000, existing, true, false);
+        session.tick(35_000, existing, true, false);
+        assertEquals(64, session.coal());
+    }
+
     @Test void rawInventoryGainsRequireMiningAndConfirmation() {
         var session = begin(EMPTY);
         session.tick(10_050, new CoalStock(64, 0, 0), true, true);
