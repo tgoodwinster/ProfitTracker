@@ -41,13 +41,30 @@ class GemMessagesTest {
 
     @Test void glossyReadsOneAndTwoWithoutAssumingOneDropPerMessage() {
         String format = GemMessages.DEFAULT_GLOSSY_FORMAT;
-        assertEquals(1, GemMessages.glossy("Sack Notification: Glossy Gemstone x1", format).orElseThrow());
-        assertEquals(2, GemMessages.glossy("§6Sack Notification: §fGlossy Gemstone §8x2", format).orElseThrow());
-        assertEquals(2, GemMessages.glossy("SACK NOTIFICATION:  Glossy Gemstone x2", format).orElseThrow());
-        assertTrue(GemMessages.glossy("Sack Notification: Glossy Gemstone x-2", format).isEmpty());
-        assertTrue(GemMessages.glossy("Sack Notification: Glossy Gemstone x0", format).isEmpty());
-        assertTrue(GemMessages.glossy("[Player] Sack Notification: Glossy Gemstone x2", format).isEmpty());
-        assertTrue(GemMessages.glossy("Removed Sack Notification: Glossy Gemstone x2", format).isEmpty());
+        assertEquals(1, GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x1", format).orElseThrow());
+        assertEquals(2, GemMessages.glossy("§b[SkyOcean] §7Sack Notification | §fGlossy Gemstone §8x2", format).orElseThrow());
+        assertEquals(2, GemMessages.glossy("[SKYOCEAN] SACK NOTIFICATION |  Glossy Gemstone x2", format).orElseThrow());
+        assertEquals(1_024, GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x1,024", format).orElseThrow());
+    }
+
+    @Test void glossyRejectsQuotedTransferredAndInvalidSkyOceanNotifications() {
+        for (String text : new String[]{
+                "[SkyOcean] Sack Notification | Glossy Gemstone x-2",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x0",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x1,01",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x2 (total: 5)",
+                "[Player] [SkyOcean] Sack Notification | Glossy Gemstone x2",
+                "Removed [SkyOcean] Sack Notification | Glossy Gemstone x2",
+                "[SkyOcean] Sack Notification | Removed Glossy Gemstone x2",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x999999999999999"}) {
+            assertTrue(GemMessages.glossy(text, GemMessages.DEFAULT_GLOSSY_FORMAT).isEmpty(), text);
+        }
+    }
+
+    @Test void realSkyOceanExampleLearnsTheQuantityInsteadOfFixingItAtOne() {
+        String format = GemMessages.formatFromExample("[SkyOcean] Sack Notification | Glossy Gemstone x1");
+        assertEquals(GemMessages.DEFAULT_GLOSSY_FORMAT, format);
+        assertEquals(2, GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x2", format).orElseThrow());
     }
 
     @Test void customizedLiteralFormatWorksAndExampleLearnsQuantity() {
@@ -65,6 +82,6 @@ class GemMessagesTest {
         assertFalse(GemMessages.validGlossyFormat("Glossy Gemstone x{amount} {amount}"));
         assertFalse(GemMessages.validGlossyFormat("Removed Glossy Gemstone x{amount}"));
         assertFalse(GemMessages.validGlossyFormat("Withdraw Glossy Gemstone x{amount}"));
-        assertTrue(GemMessages.glossy("Sack Notification: Glossy Gemstone x999999999999999", GemMessages.DEFAULT_GLOSSY_FORMAT).isEmpty());
+        assertTrue(GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x999999999999999", GemMessages.DEFAULT_GLOSSY_FORMAT).isEmpty());
     }
 }

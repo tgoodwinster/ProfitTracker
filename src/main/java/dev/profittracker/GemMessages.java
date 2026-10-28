@@ -7,7 +7,8 @@ import java.util.regex.Pattern;
 
 /** Exact gain messages only. Never interpret player chat, aggregate sacks, or inventory changes. */
 public final class GemMessages {
-    public static final String DEFAULT_GLOSSY_FORMAT = "Sack Notification: Glossy Gemstone x{amount}";
+    public static final String DEFAULT_GLOSSY_FORMAT = "[SkyOcean] Sack Notification | Glossy Gemstone x{amount}";
+    static final String LEGACY_GLOSSY_FORMAT = "Sack Notification: Glossy Gemstone x{amount}";
     private static final String COUNT = "(?:[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+)";
     private static final Pattern PRISTINE = Pattern.compile(
             "^PRISTINE! You found (?:an? )?[^\\p{L}\\p{N}]{0,8}Flawed ([A-Za-z]+) Gemstone (?:x(" + COUNT + ")|\\(x(" + COUNT + ")\\))!$");

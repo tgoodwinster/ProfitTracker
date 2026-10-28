@@ -21,17 +21,28 @@ public final class SettingsStore {
         if (!Files.exists(file)) return new TrackerSettings();
         try {
             var json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
-            // Preserve the old fixed delay as the minimum, and add a 500 ms range on upgrade.
             if (json.isJsonObject()) {
                 var gems = json.getAsJsonObject().get("gems");
-                if (gems != null && gems.isJsonObject() && !gems.getAsJsonObject().has("timerModeVersion")) {
-                    // Apply the user's all-running-time choice to settings saved by 1.5.0 too.
-                    gems.getAsJsonObject().addProperty("miningTimeOnly", false);
+                if (gems != null && gems.isJsonObject()) {
+                    var profile = gems.getAsJsonObject();
+                    if (!profile.has("timerModeVersion")) {
+                        // Apply the user's all-running-time choice to settings saved by 1.5.0 too.
+                        profile.addProperty("miningTimeOnly", false);
+                    }
+                    if (!profile.has("glossyFormatVersion")) {
+                        var format = profile.get("glossyFormat");
+                        // Replace only the old built-in default; keep custom notification formats.
+                        if (format != null && format.isJsonPrimitive() && format.getAsJsonPrimitive().isString()
+                                && ChatTitleRule.clean(format.getAsString()).equalsIgnoreCase(GemMessages.LEGACY_GLOSSY_FORMAT)) {
+                            profile.addProperty("glossyFormat", GemMessages.DEFAULT_GLOSSY_FORMAT);
+                        }
+                    }
                 }
                 var books = json.getAsJsonObject().get("books");
                 if (books != null && books.isJsonObject()) {
                     var profile = books.getAsJsonObject();
                     var oldDelay = profile.get("delayMs");
+                    // Preserve the old fixed delay as the minimum, and add a 500 ms range on upgrade.
                     if (oldDelay != null && !oldDelay.isJsonNull() && !profile.has("minDelayMs") && !profile.has("maxDelayMs")) {
                         int min = Math.clamp(oldDelay.getAsInt(), 500, 5_000);
                         profile.addProperty("minDelayMs", min);

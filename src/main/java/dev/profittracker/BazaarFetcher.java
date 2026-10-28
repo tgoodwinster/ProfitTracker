@@ -22,7 +22,7 @@ public final class BazaarFetcher {
 
     public BazaarPrices fetch(URI endpoint, Duration timeout) throws IOException, InterruptedException {
         var request = HttpRequest.newBuilder(endpoint).timeout(timeout)
-                .header("User-Agent", "TgoodUtils/1.5.1").header("Accept-Encoding", "gzip").GET().build();
+                .header("User-Agent", "TgoodUtils/1.5.2").header("Accept-Encoding", "gzip").GET().build();
         var pending = client.sendAsync(request, HttpResponse.BodyHandlers.limiting(HttpResponse.BodyHandlers.ofByteArray(), MAX_BYTES));
         final HttpResponse<byte[]> response;
         try {

@@ -5,6 +5,7 @@ public final class GemSettings {
     public boolean miningTimeOnly = false;
     public int timerModeVersion = 1;
     public boolean includeGlossy = false;
+    public int glossyFormatVersion = 1;
     public String glossyFormat = GemMessages.DEFAULT_GLOSSY_FORMAT;
 
     public void sanitize() {

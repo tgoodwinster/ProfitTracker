@@ -219,6 +219,43 @@ class TrackerSettingsTest {
         assertTrue(store.load().gems.miningTimeOnly);
     }
 
+    @Test void oldGlossyDefaultMigratesOnceAndPreservesLaterManualChoice() throws IOException {
+        var file = folder.resolve("glossy-default.json");
+        Files.writeString(file, """
+                {"gems":{"includeGlossy":true,"timerModeVersion":1,"miningTimeOnly":false,
+                "glossyFormat":"Sack Notification: Glossy Gemstone x{amount}"}}
+                """);
+        var store = new SettingsStore(file);
+        var settings = store.load();
+        assertEquals("[SkyOcean] Sack Notification | Glossy Gemstone x{amount}", settings.gems.glossyFormat);
+        assertTrue(settings.gems.includeGlossy);
+        assertFalse(settings.gems.miningTimeOnly);
+        assertEquals(2, GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x2", settings.gems.glossyFormat).orElseThrow());
+        store.save(settings);
+        assertTrue(Files.readString(file).contains("\"glossyFormatVersion\": 1"));
+        assertEquals(settings.gems.glossyFormat, store.load().gems.glossyFormat);
+
+        settings.gems.glossyFormat = GemMessages.LEGACY_GLOSSY_FORMAT;
+        store.save(settings);
+        var restored = store.load();
+        assertEquals(GemMessages.LEGACY_GLOSSY_FORMAT, restored.gems.glossyFormat);
+        assertEquals(2, GemMessages.glossy("Sack Notification: Glossy Gemstone x2", restored.gems.glossyFormat).orElseThrow());
+    }
+
+    @Test void customGlossyFormatSurvivesDefaultUpgrade() throws IOException {
+        var file = folder.resolve("custom-glossy.json");
+        Files.writeString(file, """
+                {"gems":{"includeGlossy":true,"glossyFormat":"[MyMod] Glossy Gemstone x{amount}!"}}
+                """);
+        var store = new SettingsStore(file);
+        var settings = store.load();
+        assertEquals("[MyMod] Glossy Gemstone x{amount}!", settings.gems.glossyFormat);
+        assertTrue(settings.gems.includeGlossy);
+        store.save(settings);
+        assertEquals(settings.gems.glossyFormat, store.load().gems.glossyFormat);
+        assertEquals(1, GemMessages.glossy("[MyMod] Glossy Gemstone x1!", settings.gems.glossyFormat).orElseThrow());
+    }
+
     @Test void customRulesAndAllAlertChoicesRoundTrip() throws IOException {
         var store = new SettingsStore(folder.resolve("alerts.json"));
         var settings = new TrackerSettings();

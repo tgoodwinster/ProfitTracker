@@ -108,11 +108,13 @@ gemstone panel along with the other two HUDs.
 Enable **Include glossy** in `/tu gems`. The default literal notification format is:
 
 ```text
-Sack Notification: Glossy Gemstone x{amount}
+[SkyOcean] Sack Notification | Glossy Gemstone x{amount}
 ```
 
 Both `x1` and `x2` add their actual quantity, valued at the separate live
-`GLOSSY_GEMSTONE` Bazaar bid. To support your other mod's wording, open **Glossy
+`GLOSSY_GEMSTONE` Bazaar bid. Upgrading from 1.5.0/1.5.1 replaces the old built-in
+notification format with this confirmed SkyOcean format; saved custom formats
+and the Include glossy toggle are preserved. To support another mod's wording, open **Glossy
 notification format**. Paste an actual line and press **Use pasted example**, or
 **Pick recent message**; an ending `x1`/`x2` is replaced with `{amount}`. Otherwise
 replace the quantity with `{amount}` yourself. Save the exact wording, prefix, and
