@@ -1,13 +1,15 @@
 # TgoodUtils
 
 A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, with coal profit
-tracking in the Crystal Hollows, an Endermite counter in The End, and custom chat alerts.
+tracking in the Crystal Hollows, an Endermite counter in The End, custom chat alerts,
+and a configurable book combiner for chest-style custom anvil menus on other servers too.
 No API key or server installation.
 
 The movable coal HUD shows estimated coins, coins per hour, coal mined (raw
 equivalents), and active session duration. The Endermite HUD turns green at your
 chosen threshold and can show a large bold title with a sound. Chat messages can
-also trigger your own configurable titles. Counter panels hide with the vanilla
+also trigger your own configurable titles. The optional book combiner shift-clicks
+matching books through a learned menu, up to your chosen tier. Counter panels hide with the vanilla
 HUD and in menus, and appear only in their relevant SkyBlock areas. Nothing
 automates mining or combat.
 
@@ -16,7 +18,7 @@ automates mining or combat.
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.2.2.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.3.0.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -27,9 +29,10 @@ Artifacts are retained for 90 days; rerun the workflow if an old download expire
 
 ## Use
 
-- `/tu` — open **Coal**, **Endermites**, **Custom Titles**, and **HUD** settings.
+- `/tu` — open **Coal**, **Endermites**, **Titles**, **HUD**, and **Books** settings.
 - `/tu endermites` — open the Endermites settings tab directly.
 - `/tu titles` — open Custom Titles directly.
+- `/tu books` — configure and learn the book combiner.
 - `/tu hud` — drag either HUD to reposition it; **Done** or **Escape** saves.
 - `/profit start` — start/resume a session. Sessions initially start paused.
 - `/profit pause` — stop tracking and freeze elapsed time, retaining confirmed gains.
@@ -104,6 +107,52 @@ for two seconds. If several rules match, the first enabled match wins. A new ale
 replaces the current title, rather than stacking unreadable text. Alerts use local
 UI sounds and never send chat or gameplay actions to the server.
 
+### Book combiner
+
+This supports **chest-style custom anvil menus**, with 1–6 rows, on the server you
+configure. It does not operate in vanilla anvils or ordinary inventories. It is
+initially unconfigured and stopped; it never starts automatically on opening a menu.
+
+1. Have unstacked books ready in your inventory and an **empty** custom Anvil menu.
+2. Open `/tu books`. **Maximum output tier** defaults to **5**. The fixed delay
+   defaults to **750 ms per click**, adjustable from **500–5000 ms**.
+3. Press **Learn menu slots and book**, then open your server's Anvil menu within
+   60 seconds. Click the first input slot, second input slot, **anvil confirmation button**,
+   output slot, and finally one single-enchantment book in **your inventory**.
+   These setup clicks are intercepted and do **not** move items. Escape cancels setup.
+4. The profile saves the exact server address, menu title, row count, selected
+   slots, confirmation-button material, idle decorations, enchantment, and starting
+   tier. There is one profile; learn again when changing server/menu or book type.
+5. With that menu open and your mouse cursor empty, press **K** to start. Press
+   **K** again, close the menu, or click to stop. The stopping mouse click is
+   swallowed. Remap the key under **Options → Controls → Key Binds → TgoodUtils**.
+
+The combiner picks two matching books of the same enchantment and tier, shift-clicks
+them in separately, normal-clicks the learned anvil confirmation button, then
+shift-clicks the expected next-tier book out. It waits for
+**server-confirmed anvil-slot changes** and reconciles Minecraft's inventory
+state before proceeding. Standard servers can omit player-slot echoes when
+Minecraft already predicted them correctly.
+It works upward from the selected sample's tier and leaves books at the configured
+maximum untouched. For example, 16 tier-I books can become one tier-V book in 15
+combinations (60 clicks). Existing eligible books of the selected enchantment can also be
+combined; put books you want to keep in storage first.
+
+Only single-enchantment books with actual **vanilla stored-enchantment metadata**
+or **SkyBlock-style `ExtraAttributes.enchantments` metadata** are recognized.
+Names/lore alone are not treated as proof of a tier. Multiple-enchantment books,
+stacked books, and other enchantment types are ignored. Other custom metadata
+formats require a server-specific change; the mod stops instead of guessing. The
+sequence is **shift-click book → shift-click book → normal-click anvil →
+shift-click output**. Additional confirmation dialogs are unsupported.
+
+After each click the combiner waits up to **8 seconds** for confirmation. A missing
+or unexpected result, full inventory, held cursor item, menu/world change, disconnect,
+or manual input stops progress; it never retries a failed click. A timeout can leave
+books in the inputs. Recover/check them manually before restarting. No catch-up
+burst is sent after a freeze. The status strip appears only over the configured
+menu; the rest of the mod's counters keep their existing area restrictions.
+
 ### Settings and HUD layout
 
 The **Coal** tab controls HUD visibility and has start/pause/reset session buttons.
@@ -170,8 +219,31 @@ These bounds reduce avoidable work; they cannot establish what caused a specific
 freeze. If one recurs, record the approximate time, duration, mod version, allocated
 RAM, and whether the camera/UI froze or only the world stopped updating. Check
 `logs/latest.log`, the F3 memory graph, and a Java Flight Recorder profile if
-available. The mod does not change Minecraft's gameplay connection or send custom
-packets. Public Bazaar requests use a separate HTTPS connection.
+available. The mod does not change Minecraft's gameplay connection. When explicitly started,
+the book combiner sends ordinary inventory shift-clicks through Minecraft's native
+client interaction method. Public Bazaar requests use a separate HTTPS connection.
+
+## Download verification and antivirus reports
+
+Each Actions artifact includes **SHA256SUMS.txt** beside the installable JAR. In
+PowerShell, run `Get-FileHash .\tgoodutils-1.3.0.jar -Algorithm SHA256` and compare
+it with the file's line in the manifest. This checks download integrity; a matching
+checksum is not an antivirus verdict. The archive is generated by GitHub Actions;
+there is no Windows installer. The JAR has no bundled native programs, no code
+obfuscation, no self-update/downloader, and no process-launching code.
+
+The only external HTTP request in the mod is the public Hypixel Bazaar fetch.
+Preferences are written to `config/profittracker.json`. Recent chat stays in memory
+except for target strings you deliberately save. The book combiner uses the existing
+game connection for ordinary inventory interactions, without another service.
+
+If the ZIP or JAR is flagged, record the antivirus product, exact detection name,
+file/version, and SHA-256. The scanner's protection/history details usually show
+these. Definitions and reputation can change between downloads, but the warning
+alone cannot establish the cause. Keep the detection for investigation or submit
+it to the antivirus vendor as a suspected false positive; do not disable protection
+or add a blanket mods-folder exclusion. Builds use pinned dependencies and verified
+Gradle downloads, and archive ordering/timestamps are fixed for repeatable JARs.
 
 ## Build
 
@@ -181,7 +253,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.2.2.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.3.0.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -203,7 +275,7 @@ duration, and old-settings migration. They do not substitute for a live-server t
 5. Repeat with an Enchanted Mining Sack. Transfer inventory into sacks, withdraw
    coal, open menus, pause, and reset: no transfer should add mining profit.
 6. Disconnect the network/API: counts continue; prices eventually become unavailable.
-7. Open `/tu`, switch all four tabs, and change preferences. Reopen the screen and
+7. Open `/tu`, switch all five tabs, and change preferences. Reopen the screen and
    restart the client to check they persist.
 8. Use `/tu hud` to drag both previews, save, and change GUI scale. Each panel should
    stay on screen. Reset positions from the HUD tab.

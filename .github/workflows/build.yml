@@ -18,6 +18,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, test, and verify Fabric metadata
         run: ./gradlew --no-daemon build
+      - name: Record mod SHA-256
+        working-directory: build/libs
+        run: |
+          for jar in tgoodutils-*.jar; do
+            case "$jar" in *-sources.jar) continue ;; esac
+            sha256sum "$jar"
+          done > SHA256SUMS.txt
       - name: Upload installable mod
         uses: actions/upload-artifact@v4
         with:
@@ -25,6 +32,7 @@ jobs:
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar
+            build/libs/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 90
       - name: Upload test results

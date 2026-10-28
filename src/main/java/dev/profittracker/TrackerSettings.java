@@ -15,10 +15,13 @@ public final class TrackerSettings {
     public AlertStyle endermiteAlert = new AlertStyle();
     public boolean customTitlesEnabled = true;
     public List<ChatTitleRule> customTitles = new ArrayList<>();
+    public BookCombinerSettings books = new BookCombinerSettings();
     public HudPosition coalPosition = new HudPosition(0.015, 0.08);
     public HudPosition endermitePosition = new HudPosition(0.015, 0.38);
 
     public void sanitize() {
+        if (books == null) books = new BookCombinerSettings();
+        books.sanitize();
         endermiteTarget = Math.clamp(endermiteTarget, 0, 200);
         endermiteRange = Math.clamp(endermiteRange, 4, 128);
         if (endermiteAlert == null) endermiteAlert = new AlertStyle();

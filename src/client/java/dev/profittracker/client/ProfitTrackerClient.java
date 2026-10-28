@@ -79,11 +79,13 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     private List<String> endermiteHudText;
     private int displayedEndermites = -1;
     private int displayedTarget = -1;
+    private BookCombinerController books;
 
     @Override
     public void onInitializeClient() {
         try { settings = settingsStore.load(); }
         catch (IOException ex) { LOGGER.warn("Could not load tracker settings; using defaults", ex); }
+        books = new BookCombinerController(this);
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) -> dispatcher.register(
                 literal("profit")
                         .executes(context -> feedback("/profit start | pause | reset"))
@@ -105,6 +107,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                         .executes(context -> openSettings(0))
                         .then(literal("endermites").executes(context -> openSettings(1)))
                         .then(literal("titles").executes(context -> openSettings(2)))
+                        .then(literal("books").executes(context -> openSettings(4)))
                         .then(literal("hud").executes(context -> {
                             pendingScreen = new HudEditorScreen(this, null);
                             return 1;
@@ -146,6 +149,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             recentChat.clear();
             pendingScreen = null;
             lastLevel = null;
+            books.disconnect();
         });
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
                 Identifier.fromNamespaceAndPath("profittracker", "hud"), (graphics, delta) -> render(graphics));
@@ -169,6 +173,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             endermites.clear();
             titles.clear();
             chatTitles.clear();
+            books.disconnect();
             lastLevel = client.level;
         }
         if (++ticks % 20 == 0) {
@@ -214,7 +219,10 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             client.gui.setScreen(pendingScreen);
             pendingScreen = null;
         }
+        books.tick();
     }
+
+    BookCombinerController books() { return books; }
 
     private static boolean isCoal(Minecraft client, BlockPos pos) {
         var state = client.level.getBlockState(pos);
@@ -440,7 +448,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     }
 
     private static String number(double value) { return String.format(Locale.US, "%,.0f", value); }
-    private static long now() { return (System.nanoTime() - CLOCK_ORIGIN) / 1_000_000; }
+    static long now() { return (System.nanoTime() - CLOCK_ORIGIN) / 1_000_000; }
     static int feedback(String message) {
         var player = Minecraft.getInstance().player;
         if (player != null) player.sendSystemMessage(Component.literal("[TgoodUtils] " + message));

@@ -31,6 +31,10 @@ java {
     withSourcesJar()
 }
 tasks.withType(JavaCompile).configureEach { options.release = 25 }
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
 test { useJUnitPlatform() }
 
 processResources {
@@ -59,6 +63,14 @@ tasks.register('verifyModJar') {
             }
             assert metadata.depends.minecraft == '~26.2'
             assert metadata.depends.java == '>=25'
+            metadata.mixins.each { definition ->
+                def mixinEntry = jarFile.getJarEntry(definition.config)
+                assert mixinEntry != null
+                def mixins = new groovy.json.JsonSlurper().parse(jarFile.getInputStream(mixinEntry))
+                mixins.client.each { name ->
+                    assert jarFile.getJarEntry((mixins.package + '.' + name).replace('.', '/') + '.class') != null
+                }
+            }
             println "Verified Fabric metadata and client entrypoint in ${artifact.get().asFile.name}"
         } finally { jarFile.close() }
     }

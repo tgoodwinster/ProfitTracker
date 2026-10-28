@@ -59,6 +59,39 @@ class TrackerSettingsTest {
         assertEquals("{broken", Files.readString(file));
     }
 
+    @Test void bookProfilePersistsButRunningStateDoesNotExistInConfiguration() throws IOException {
+        var store = new SettingsStore(folder.resolve("books.json"));
+        var settings = new TrackerSettings();
+        settings.books.server = "example.net";
+        settings.books.menuTitle = "Anvil";
+        settings.books.rows = 6;
+        settings.books.firstSlot = 29;
+        settings.books.secondSlot = 33;
+        settings.books.outputSlot = 13;
+        settings.books.confirmSlot = 22;
+        settings.books.confirmItem = "minecraft:anvil";
+        settings.books.enchantment = "skyblock:sharpness";
+        settings.books.delayMs = 1_000;
+        settings.books.firstIdle = "minecraft:barrier\nInput";
+        store.save(settings);
+        var restored = store.load().books;
+        assertTrue(restored.configured());
+        assertEquals(5, restored.maxLevel);
+        assertEquals(1_000, restored.delayMs);
+        assertEquals(settings.books.firstIdle, restored.firstIdle);
+        assertFalse(Files.readString(folder.resolve("books.json")).contains("running"));
+    }
+
+    @Test void olderAndNullBookSettingsGainSafeDefaults() throws IOException {
+        var file = folder.resolve("old-books.json");
+        Files.writeString(file, "{\"books\":null}");
+        var books = new SettingsStore(file).load().books;
+        assertNotNull(books);
+        assertEquals(750, books.delayMs);
+        assertEquals(5, books.maxLevel);
+        assertFalse(books.configured());
+    }
+
     @Test void unchangedGuiSavesDoNotRewriteTheConfigFile() throws IOException {
         var file = folder.resolve("settings.json");
         var store = new SettingsStore(file);

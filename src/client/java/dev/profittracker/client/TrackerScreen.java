@@ -18,6 +18,8 @@ final class TrackerScreen extends Screen {
     private int panelWidth;
     private EditBox targetInput;
     private EditBox rangeInput;
+    private EditBox bookDelayInput;
+    private EditBox bookLevelInput;
     private int titlesPage;
     private String error = "";
 
@@ -30,12 +32,13 @@ final class TrackerScreen extends Screen {
     @Override
     protected void init() {
         targetInput = rangeInput = null;
+        bookDelayInput = bookLevelInput = null;
         panelWidth = Math.min(420, width - 16);
         left = (width - panelWidth) / 2;
         top = Math.max(5, (height - 230) / 2);
         int gap = 4;
-        int tabWidth = (panelWidth - gap * 3) / 4;
-        String[] names = {"Coal", "Endermites", "Custom Titles", "HUD"};
+        int tabWidth = (panelWidth - gap * 4) / 5;
+        String[] names = {"Coal", "Endermites", "Titles", "HUD", "Books"};
         for (int i = 0; i < names.length; i++) {
             final int selected = i;
             var button = button(names[i], left + i * (tabWidth + gap), top + 23, tabWidth, () -> {
@@ -51,6 +54,7 @@ final class TrackerScreen extends Screen {
             case 0 -> coalTab();
             case 1 -> endermiteTab();
             case 2 -> customTitlesTab();
+            case 4 -> booksTab();
             default -> hudTab();
         }
         button("Done", left, top + 202, panelWidth, this::onClose);
@@ -136,12 +140,53 @@ final class TrackerScreen extends Screen {
         });
     }
 
+    private void booksTab() {
+        var profile = mod.settings().books;
+        bookDelayInput = new EditBox(font, left + panelWidth - 65, top + 78, 65, 20, Component.literal("Delay per click in milliseconds"));
+        bookDelayInput.setMaxLength(4);
+        bookDelayInput.setValue(Integer.toString(profile.delayMs));
+        addRenderableWidget(bookDelayInput);
+        bookLevelInput = new EditBox(font, left + panelWidth - 65, top + 106, 65, 20, Component.literal("Maximum output tier"));
+        bookLevelInput.setMaxLength(2);
+        bookLevelInput.setValue(Integer.toString(profile.maxLevel));
+        addRenderableWidget(bookLevelInput);
+        button("Learn menu slots and book", left, top + 136, panelWidth, () -> {
+            if (applyTarget()) mod.books().learn();
+        });
+        button("Clear learned profile", left, top + 162, panelWidth, () -> {
+            if (!applyTarget()) return;
+            var replacement = new dev.profittracker.BookCombinerSettings();
+            replacement.delayMs = profile.delayMs;
+            replacement.maxLevel = profile.maxLevel;
+            mod.settings().books = replacement;
+            saveAndRefresh();
+        });
+    }
+
     private Button button(String label, int x, int y, int w, Runnable action) {
         return addRenderableWidget(Button.builder(Component.literal(label), ignored -> action.run())
                 .bounds(x, y, w, 20).build());
     }
 
     private boolean applyTarget() {
+        if (bookDelayInput != null) {
+            try {
+                int delay = Integer.parseInt(bookDelayInput.getValue().trim());
+                int level = Integer.parseInt(bookLevelInput.getValue().trim());
+                if (delay < 500 || delay > 5_000 || level < 2 || level > 10) throw new NumberFormatException();
+                if (mod.settings().books.configured() && level <= mod.settings().books.inputLevel) {
+                    error = "Max tier must be higher than your selected book.";
+                    return false;
+                }
+                mod.settings().books.delayMs = delay;
+                mod.settings().books.maxLevel = level;
+                error = mod.saveSettings() ? "" : "Could not save settings. See the game log.";
+                return true;
+            } catch (NumberFormatException ex) {
+                error = "Use a delay of 500-5000 ms and a max tier of 2-10.";
+                return false;
+            }
+        }
         if (targetInput == null) return true;
         try {
             int number = Integer.parseInt(targetInput.getValue().trim());
@@ -186,6 +231,13 @@ final class TrackerScreen extends Screen {
         } else if (tab == 2) {
             if (mod.settings().customTitles.isEmpty()) line(graphics, "Add a title to match a chat message.", 116);
             line(graphics, "Page " + (titlesPage + 1) + " / " + Math.max(1, (mod.settings().customTitles.size() + 2) / 3), 192);
+        } else if (tab == 4) {
+            var profile = mod.settings().books;
+            line(graphics, profile.configured() ? font.plainSubstrByWidth("Profile: " + profile.menuTitle + " | " + profile.enchantment, panelWidth - 6)
+                    : "Learn the empty menu, then select a book.", 56);
+            graphics.text(font, "Delay per click (500-5000 ms)", left + 3, top + 84, 0xFFF3F6FA);
+            graphics.text(font, "Maximum output tier (2-10)", left + 3, top + 112, 0xFFF3F6FA);
+            if (error.isEmpty()) line(graphics, "In the learned menu: " + mod.books().keyName() + " starts / stops.", 188);
         } else {
             line(graphics, "Or use /tu hud to move both counters.", 127);
             line(graphics, "Drag a panel. Escape or Done saves it.", 142);

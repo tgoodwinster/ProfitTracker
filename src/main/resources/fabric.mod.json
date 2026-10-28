@@ -3,11 +3,12 @@
   "id": "profittracker",
   "version": "${version}",
   "name": "TgoodUtils",
-  "description": "Coal profits, Endermite alerts, movable HUDs, and custom chat titles for Hypixel SkyBlock.",
+  "description": "Coal profits, Endermite alerts, custom chat titles, and a configurable book combiner.",
   "authors": ["tgoodwinster"],
   "license": "MIT",
   "environment": "client",
   "entrypoints": {"client": ["dev.profittracker.client.ProfitTrackerClient"]},
+  "mixins": [{"config": "profittracker.client.mixins.json", "environment": "client"}],
   "depends": {
     "fabricloader": ">=0.20.1",
     "minecraft": "~26.2",
