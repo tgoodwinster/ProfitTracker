@@ -170,6 +170,30 @@ class TrackerSettingsTest {
         assertEquals(20, settings.endermiteTarget);
     }
 
+    @Test void gemstonePreferencesAndPositionPersistAndOldFilesGainDefaults() throws IOException {
+        var file = folder.resolve("gems.json");
+        Files.writeString(file, "{\"gems\":null,\"gemPosition\":null}");
+        var store = new SettingsStore(file);
+        var settings = store.load();
+        assertTrue(settings.gems.hudEnabled);
+        assertTrue(settings.gems.miningTimeOnly);
+        assertFalse(settings.gems.includeGlossy);
+        settings.gems.includeGlossy = true;
+        settings.gems.miningTimeOnly = false;
+        settings.gems.glossyFormat = "[OtherMod] Glossy Gemstone x{amount}";
+        settings.gemPosition.moveTo(180, 80, 500, 300, 200, 100);
+        store.save(settings);
+        var restored = store.load();
+        assertTrue(restored.gems.includeGlossy);
+        assertFalse(restored.gems.miningTimeOnly);
+        assertEquals(settings.gems.glossyFormat, restored.gems.glossyFormat);
+        assertEquals(180, restored.gemPosition.left(500, 200));
+        assertEquals(80, restored.gemPosition.top(300, 100));
+        settings.resetPositions();
+        assertEquals(0.65, settings.gemPosition.x);
+        assertEquals(0.03, settings.gemPosition.y);
+    }
+
     @Test void oldConfigurationGainsNewAlertOptionsWithoutLosingMutedTitles() throws IOException {
         var file = folder.resolve("old.json");
         Files.writeString(file, "{\"endermiteTitle\":false,\"endermiteTarget\":25}");

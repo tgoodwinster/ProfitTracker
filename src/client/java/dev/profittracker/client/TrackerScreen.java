@@ -33,8 +33,8 @@ final class TrackerScreen extends Screen {
         left = (width - panelWidth) / 2;
         top = Math.max(5, (height - 230) / 2);
         int gap = 4;
-        int tabWidth = (panelWidth - gap * 4) / 5;
-        String[] names = {"Coal", "Endermites", "Titles", "HUD", "Books"};
+        int tabWidth = (panelWidth - gap * 5) / 6;
+        String[] names = {"Coal", "Endermites", "Titles", "HUD", "Books", "Gems"};
         for (int i = 0; i < names.length; i++) {
             final int selected = i;
             var button = button(names[i], left + i * (tabWidth + gap), top + 23, tabWidth, () -> {
@@ -49,6 +49,7 @@ final class TrackerScreen extends Screen {
             case 1 -> endermiteTab();
             case 2 -> customTitlesTab();
             case 4 -> booksTab();
+            case 5 -> gemsTab();
             default -> hudTab();
         }
         button("Done", left, top + 202, panelWidth, this::onClose);
@@ -155,7 +156,10 @@ final class TrackerScreen extends Screen {
         button("Learn menu slots and book", left, top + 154, panelWidth, () -> {
             if (saveSettings()) mod.books().learn();
         });
-        button("Clear learned profile", left, top + 178, panelWidth, () -> {
+        button("Key: " + mod.books().keyName() + " (Controls)", left, top + 178, panelWidth / 2 - 4, () -> {
+            if (saveSettings()) mod.books().openKeybinds(this);
+        });
+        button("Clear profile", left + panelWidth / 2 + 4, top + 178, panelWidth / 2 - 4, () -> {
             if (!saveSettings()) return;
             var replacement = new dev.profittracker.BookCombinerSettings();
             replacement.minDelayMs = profile.minDelayMs;
@@ -163,6 +167,29 @@ final class TrackerScreen extends Screen {
             replacement.maxLevel = profile.maxLevel;
             mod.settings().books = replacement;
             saveAndRefresh();
+        });
+    }
+
+    private void gemsTab() {
+        button("Gemstone HUD: " + onOff(mod.settings().gems.hudEnabled), left, top + 56, panelWidth, () -> {
+            mod.settings().gems.hudEnabled = !mod.settings().gems.hudEnabled;
+            saveAndRefresh();
+        });
+        button(mod.gemstones().running() ? "Pause gemstone session" : "Start / resume gemstone session", left, top + 82, panelWidth, () -> {
+            mod.toggleGems();
+            rebuildWidgets();
+        });
+        button("Timer: " + (mod.settings().gems.miningTimeOnly ? "Mining activity" : "Running session"), left, top + 108, panelWidth, () -> {
+            mod.settings().gems.miningTimeOnly = !mod.settings().gems.miningTimeOnly;
+            mod.gemstones().interrupt(ProfitTrackerClient.now());
+            saveAndRefresh();
+        });
+        button("Include glossy: " + onOff(mod.settings().gems.includeGlossy), left, top + 134, panelWidth, () -> {
+            mod.settings().gems.includeGlossy = !mod.settings().gems.includeGlossy;
+            saveAndRefresh();
+        });
+        button("Glossy notification format", left, top + 160, panelWidth, () -> {
+            if (saveSettings()) minecraft.gui.setScreen(new GlossyFormatScreen(mod, this));
         });
     }
 
@@ -208,6 +235,8 @@ final class TrackerScreen extends Screen {
         } else if (tab == 3) {
             line(graphics, "Or use /tu hud to move both counters.", 127);
             line(graphics, "Drag a panel. Escape or Done saves it.", 142);
+        } else if (tab == 5) {
+            line(graphics, "Reset the coins/h timer from your inventory.", 188);
         }
         if (!error.isEmpty()) graphics.centeredText(font, font.plainSubstrByWidth(error, panelWidth), width / 2,
                 top + (tab == 4 ? 64 : 190), 0xFFFF7777);

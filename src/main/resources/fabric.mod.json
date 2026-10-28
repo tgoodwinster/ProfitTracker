@@ -3,7 +3,7 @@
   "id": "profittracker",
   "version": "${version}",
   "name": "TgoodUtils",
-  "description": "Coal profits, Endermite alerts, custom chat titles, and a configurable book combiner.",
+  "description": "Coal and pristine gemstone profits, Endermite alerts, custom chat titles, and a configurable book combiner.",
   "authors": ["tgoodwinster"],
   "license": "MIT",
   "environment": "client",

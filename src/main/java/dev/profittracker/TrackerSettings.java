@@ -16,12 +16,16 @@ public final class TrackerSettings {
     public boolean customTitlesEnabled = true;
     public List<ChatTitleRule> customTitles = new ArrayList<>();
     public BookCombinerSettings books = new BookCombinerSettings();
+    public GemSettings gems = new GemSettings();
     public HudPosition coalPosition = new HudPosition(0.015, 0.08);
     public HudPosition endermitePosition = new HudPosition(0.015, 0.38);
+    public HudPosition gemPosition = new HudPosition(0.65, 0.03);
 
     public void sanitize() {
         if (books == null) books = new BookCombinerSettings();
         books.sanitize();
+        if (gems == null) gems = new GemSettings();
+        gems.sanitize();
         endermiteTarget = Math.clamp(endermiteTarget, 0, 200);
         endermiteRange = Math.clamp(endermiteRange, 4, 128);
         if (endermiteAlert == null) endermiteAlert = new AlertStyle();
@@ -35,13 +39,16 @@ public final class TrackerSettings {
         }
         if (coalPosition == null) coalPosition = new HudPosition(0.015, 0.08);
         if (endermitePosition == null) endermitePosition = new HudPosition(0.015, 0.38);
+        if (gemPosition == null) gemPosition = new HudPosition(0.65, 0.03);
         coalPosition.sanitize();
         endermitePosition.sanitize();
+        gemPosition.sanitize();
     }
 
     public void resetPositions() {
         coalPosition = new HudPosition(0.015, 0.08);
         endermitePosition = new HudPosition(0.015, 0.38);
+        gemPosition = new HudPosition(0.65, 0.03);
     }
 
     /** Fractions of the available space keep the entire panel visible after a GUI scale change. */

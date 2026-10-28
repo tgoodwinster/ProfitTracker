@@ -39,8 +39,9 @@ final class HudEditorScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         mod.drawPanel(graphics, mod.coalLines(), mod.settings().coalPosition, false, true);
         mod.drawPanel(graphics, mod.endermiteLines(), mod.settings().endermitePosition, mod.endermitesAtTarget(), true);
+        mod.drawPanel(graphics, mod.gemLines(), mod.settings().gemPosition, false, true);
         graphics.centeredText(font, "Drag a HUD. Escape or Done saves.", width / 2, height - 64, 0xFFFFFFFF);
-        graphics.centeredText(font, "Both counters are shown as previews.", width / 2, height - 53, 0xFFB7C5D3);
+        graphics.centeredText(font, "All three trackers are shown as previews.", width / 2, height - 53, 0xFFB7C5D3);
     }
 
     @Override
@@ -48,7 +49,8 @@ final class HudEditorScreen extends Screen {
         if (super.mouseClicked(event, doubleClick)) return true;
         if (event.button() != 0) return false;
         // Endermites are drawn last, so prefer that panel if the previews overlap.
-        return beginDrag(event, mod.settings().endermitePosition, mod.endermiteLines())
+        return beginDrag(event, mod.settings().gemPosition, mod.gemLines())
+                || beginDrag(event, mod.settings().endermitePosition, mod.endermiteLines())
                 || beginDrag(event, mod.settings().coalPosition, mod.coalLines());
     }
 

@@ -1,0 +1,65 @@
+package dev.profittracker;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class GemMessagesTest {
+    @Test void parsesRealPristineFormattingAndIcons() {
+        var jade = GemMessages.pristine("§d§lPRISTINE! §r§fYou found §r§a☘ Flawed Jade Gemstone §r§8x20§r§f!").orElseThrow();
+        assertEquals(Gemstone.JADE, jade.gemstone());
+        assertEquals(20, jade.flawed());
+        var amethyst = GemMessages.pristine("§d§lPRISTINE! §r§fYou found §r§a❈ Flawed Amethyst Gemstone §r§8x16§r§f!").orElseThrow();
+        assertEquals(Gemstone.AMETHYST, amethyst.gemstone());
+        assertEquals(16, amethyst.flawed());
+    }
+
+    @Test void acceptsKnownGemTypesAndStrictCommaQuantities() {
+        for (var gemstone : Gemstone.values()) {
+            var gain = GemMessages.pristine("PRISTINE! You found a Flawed " + gemstone.name() + " Gemstone (x1,024)!").orElseThrow();
+            assertEquals(gemstone, gain.gemstone());
+            assertEquals(1_024, gain.flawed());
+        }
+    }
+
+    @Test void rejectsPlayerQuotesOtherTiersSackTransfersAndGuessedAmounts() {
+        for (String text : new String[]{
+                "[MVP+] Player: PRISTINE! You found Flawed Ruby Gemstone x20!",
+                "[Sacks] +20 Flawed Ruby Gemstone", "You withdrew 20 Flawed Ruby Gemstone",
+                "PRISTINE! You found Rough Ruby Gemstone x20!", "PRISTINE! You found Fine Ruby Gemstone x20!",
+                "PRISTINE! You found Flawed Unknown Gemstone x20!", "PRISTINE! You found Flawed Ruby Gemstone!",
+                "PRISTINE! You found Flawed Ruby Gemstone x0!", "PRISTINE! You found Flawed Ruby Gemstone x-2!",
+                "PRISTINE! You found Flawed Ruby Gemstone x1,,024!", "PRISTINE! You found Flawed Ruby Gemstone x1,01!",
+                "PRISTINE! You found Flawed Ruby Gemstone x999999999999999999!"}) {
+            assertTrue(GemMessages.pristine(text).isEmpty(), text);
+        }
+    }
+
+    @Test void glossyReadsOneAndTwoWithoutAssumingOneDropPerMessage() {
+        String format = GemMessages.DEFAULT_GLOSSY_FORMAT;
+        assertEquals(1, GemMessages.glossy("Sack Notification: Glossy Gemstone x1", format).orElseThrow());
+        assertEquals(2, GemMessages.glossy("§6Sack Notification: §fGlossy Gemstone §8x2", format).orElseThrow());
+        assertEquals(2, GemMessages.glossy("SACK NOTIFICATION:  Glossy Gemstone x2", format).orElseThrow());
+        assertTrue(GemMessages.glossy("Sack Notification: Glossy Gemstone x-2", format).isEmpty());
+        assertTrue(GemMessages.glossy("Sack Notification: Glossy Gemstone x0", format).isEmpty());
+        assertTrue(GemMessages.glossy("[Player] Sack Notification: Glossy Gemstone x2", format).isEmpty());
+        assertTrue(GemMessages.glossy("Removed Sack Notification: Glossy Gemstone x2", format).isEmpty());
+    }
+
+    @Test void customizedLiteralFormatWorksAndExampleLearnsQuantity() {
+        String example = "[OtherMod] Sac Notification - Glossy Gemstone x2!";
+        String format = GemMessages.formatFromExample(example);
+        assertEquals("[OtherMod] Sac Notification - Glossy Gemstone x{amount}!", format);
+        assertTrue(GemMessages.validGlossyFormat(format));
+        assertEquals(1, GemMessages.glossy(example.replace("x2", "x1"), format).orElseThrow());
+        assertEquals(2, GemMessages.glossy(example, format).orElseThrow());
+        assertTrue(GemMessages.glossy("OtherMod Sac Notification - Glossy Gemstone x2!", format).isEmpty());
+    }
+
+    @Test void invalidGlossyFormatsAndExcessiveCountsAreNotAccepted() {
+        assertFalse(GemMessages.validGlossyFormat("anything {amount}"));
+        assertFalse(GemMessages.validGlossyFormat("Glossy Gemstone x{amount} {amount}"));
+        assertFalse(GemMessages.validGlossyFormat("Removed Glossy Gemstone x{amount}"));
+        assertFalse(GemMessages.validGlossyFormat("Withdraw Glossy Gemstone x{amount}"));
+        assertTrue(GemMessages.glossy("Sack Notification: Glossy Gemstone x999999999999999", GemMessages.DEFAULT_GLOSSY_FORMAT).isEmpty());
+    }
+}

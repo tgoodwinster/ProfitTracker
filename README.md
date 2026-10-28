@@ -1,7 +1,8 @@
 # TgoodUtils
 
 A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, with coal profit
-tracking in the Crystal Hollows, an Endermite counter in The End, custom chat alerts,
+tracking in the Crystal Hollows, pristine gemstone/glossy profit tracking,
+an Endermite counter in The End, custom chat alerts,
 and a configurable book combiner for chest-style custom anvil menus on other servers too.
 No API key or server installation.
 
@@ -18,7 +19,7 @@ automates mining or combat.
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.4.0.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.5.0.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -29,11 +30,12 @@ Artifacts are retained for 90 days; rerun the workflow if an old download expire
 
 ## Use
 
-- `/tu` — open **Coal**, **Endermites**, **Titles**, **HUD**, and **Books** settings.
+- `/tu` — open **Coal**, **Endermites**, **Titles**, **HUD**, **Books**, and **Gems** settings.
 - `/tu endermites` — open the Endermites settings tab directly.
 - `/tu titles` — open Custom Titles directly.
-- `/tu books` — configure and learn the book combiner.
-- `/tu hud` — drag either HUD to reposition it; **Done** or **Escape** saves.
+- `/tu books` — configure and learn the book combiner, or open its keybind controls.
+- `/tu gems` (or `/tu gemstones`) — gemstone session, timer, and glossy settings.
+- `/tu hud` — drag any tracker HUD to reposition it; **Done** or **Escape** saves.
 - `/profit start` — start/resume a session. Sessions initially start paused.
 - `/profit pause` — stop tracking and freeze elapsed time, retaining confirmed gains.
 - `/profit reset` — clear totals and elapsed time; preserve running/paused state.
@@ -48,6 +50,88 @@ pauses the session. Sessions are intentionally not saved to disk.
 
 The timer counts running time in the Crystal Hollows with no menu open. It includes
 idle time; it does not guess how much time you actually spent swinging a pickaxe.
+
+### Pristine gemstone profit tracker
+
+Open `/tu gems` and **Start / resume gemstone session**. This session is independent
+of coal and starts paused. Its movable HUD shows estimated total coins, estimated
+coins per hour, pristine proc count, Flawed gemstone count, optional glossy count,
+and the hourly-rate timer. The rate shows `--` until at least one second has
+accumulated. Hiding the HUD does not pause a running session.
+
+Only **server pristine messages** are tallied, for example:
+
+```text
+PRISTINE! You found ☘ Flawed Jade Gemstone x20!
+```
+
+Minecraft formatting and gemstone icons are handled. The **amount** is tallied,
+not just the number of messages. Each of the 12 supported gemstone types uses its
+own live Bazaar **Flawless** instant-sell bid:
+
+```text
+pristine value = flawed quantity / 6,400 × flawless price
+6,400 flawed = 80 fine × 80 flawed per fine
+```
+
+Fractional flawless equivalents are retained; small procs are never rounded down
+to zero whole flawless gems. This estimates **pristine gains**, not all gemstone
+mining income: ordinary Rough drops, inventory contents, compaction, transfers,
+and aggregate sack totals are not added. Local pristine echoes and ordinary player
+chat are excluded, so the same proc is not counted again when displayed by a mod.
+Missing messages are not reconstructed. Required prices that are missing/expired
+show **unavailable** while counts continue. Prices use the existing background
+Bazaar fetch, before tax and crafting costs, with no extra API key or per-message
+network requests.
+
+**Timer** defaults to **Mining activity**: holding attack on stained-glass gemstone
+blocks/panes or receiving a pristine gain supplies activity, with a two-second idle
+grace period. Menus and idle periods after that pause the timer. You can select
+**Running session** instead to include all connected SkyBlock time while running,
+including menus. Neither mode counts time disconnected from SkyBlock, and a stalled
+client tick adds at most one second. This is an estimate of active time, not an
+authoritative server mining timer. Disconnecting pauses the session; resume it
+from `/tu gems`. Counts and time are kept only for the current game process.
+
+Open your **personal inventory (E)** to reveal **Reset gem timer** at the bottom
+left. It resets both the hourly-rate earnings window and its timer, retaining
+total coins, proc counts, and material counts. Old earnings therefore do not inflate
+the fresh rate. The button does not appear on the normal gameplay HUD, chest menus,
+or settings screens, and it does not move any inventory items. `/tu hud` moves the
+gemstone panel along with the other two HUDs.
+
+#### Optional glossy notifications
+
+Enable **Include glossy** in `/tu gems`. The default literal notification format is:
+
+```text
+Sack Notification: Glossy Gemstone x{amount}
+```
+
+Both `x1` and `x2` add their actual quantity, valued at the separate live
+`GLOSSY_GEMSTONE` Bazaar bid. To support your other mod's wording, open **Glossy
+notification format**. Paste an actual line and press **Use pasted example**, or
+**Pick recent message**; an ending `x1`/`x2` is replaced with `{amount}`. Otherwise
+replace the quantity with `{amount}` yourself. Save the exact wording, prefix, and
+punctuation. Formatting, whitespace, and case are normalized; this is literal
+matching, without user-supplied regex. While enabled, matching local/system chat
+and recent glossy examples are observed, including messages generated by other
+mods. Ordinary player chat is excluded.
+
+Only positive matching notifications received during a running session, with the
+menu closed and recent gemstone mining activity, count. Startup, world changes,
+and server commands impose a five-second glossy quarantine to skip pending
+transfer notifications. Paused/disabled periods are not backfilled. Turning glossy
+off excludes its existing value and stops new glossy tallying; retained counts
+are available if you turn it back on. Rate resets apply a separate glossy baseline.
+
+The other mod's notification is a trusted input, not an authoritative mining API.
+The tracker cannot prove the origin of an arbitrary notification. Select a format
+that reports **new mining gains**, not sack withdrawals or inventory transfers;
+unknown or unmatched formats are deliberately ignored. Include glossy before
+mining, let a notification arrive, and use its exact text in the format screen if
+the default does not match. Recent messages stay in memory and clear on disconnect;
+only the format you explicitly save is persisted.
 
 ### Endermite counter
 
@@ -127,7 +211,11 @@ initially unconfigured and stopped; it never starts automatically on opening a m
    tier. There is one profile; learn again when changing server/menu or book type.
 5. With that menu open and your mouse cursor empty, press **K** to start. Press
    **K** again, close the menu, or click to stop. The stopping mouse click is
-   swallowed. Remap the key under **Options → Controls → Key Binds → TgoodUtils**.
+   swallowed. Remap the key under **Options → Controls → Key Binds → TgoodUtils →
+   Start / stop book combiner (in Anvil menu)**. The **Key: … (Controls)** button
+   in `/tu books` opens that vanilla controls screen directly. Keyboard keys and
+   mouse buttons work; changes persist in Minecraft's `options.txt`. The displayed
+   shortcut updates immediately. It operates only in the learned Anvil menu.
 
 The combiner picks two matching books of the same enchantment and tier, shift-clicks
 them in separately, normal-clicks the learned anvil confirmation button, then
@@ -167,7 +255,7 @@ menu; the rest of the mod's counters keep their existing area restrictions.
 
 The **Coal** tab controls HUD visibility and has start/pause/reset session buttons.
 Hiding the coal HUD does not stop a running session. The **HUD** tab opens the drag
-editor or restores default positions. The editor shows both previews even when a
+editor or restores default positions. The editor shows all three previews even when a
 tracker is disabled or you are outside its island. Positions stay on screen when
 window size or GUI scale changes.
 
@@ -247,12 +335,14 @@ open/close the affected menus during the recording, and keep the generated
 profiling archive and `logs/latest.log` to inspect the actual stalled thread.
 The mod does not change Minecraft's gameplay connection. When explicitly started,
 the book combiner sends ordinary inventory shift-clicks through Minecraft's native
-client interaction method. Public Bazaar requests use a separate HTTPS connection.
+client interaction method. Public Bazaar requests use a separate HTTPS connection. Gemstone messages use the
+same background price cache. The inventory reset adds one vanilla button only to
+the personal inventory, and gemstone tracking never polls item NBT.
 
 ## Download verification and antivirus reports
 
 Each Actions artifact includes **SHA256SUMS.txt** beside the installable JAR. In
-PowerShell, run `Get-FileHash .\tgoodutils-1.4.0.jar -Algorithm SHA256` and compare
+PowerShell, run `Get-FileHash .\tgoodutils-1.5.0.jar -Algorithm SHA256` and compare
 it with the file's line in the manifest. This checks download integrity; a matching
 checksum is not an antivirus verdict. The archive is generated by GitHub Actions;
 there is no Windows installer. The JAR has no bundled native programs, no code
@@ -279,7 +369,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.4.0.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.5.0.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -289,7 +379,8 @@ and your own legitimate Minecraft login are needed to test on Hypixel. Unit test
 exercise compaction, initial stock, recipe-boundary attribution, delayed transfers,
 sack parsing, session controls, price failures, Endermite threshold/rearm behavior,
 config persistence, HUD/title position clamping, chat matching and debounce, alert
-duration, randomized click scheduling, and old-settings migration. They do not substitute for a live-server test.
+duration, randomized click scheduling, pristine parsing, mixed gemstone valuation,
+glossy quantities, independent rate resets, and old-settings migration. They do not substitute for a live-server test.
 
 ### In-game acceptance check
 
@@ -301,9 +392,9 @@ duration, randomized click scheduling, and old-settings migration. They do not s
 5. Repeat with an Enchanted Mining Sack. Transfer inventory into sacks, withdraw
    coal, open menus, pause, and reset: no transfer should add mining profit.
 6. Disconnect the network/API: counts continue; prices eventually become unavailable.
-7. Open `/tu`, switch all five tabs, and change preferences. Reopen the screen and
+7. Open `/tu`, switch all six tabs, and change preferences. Reopen the screen and
    restart the client to check they persist.
-8. Use `/tu hud` to drag both previews, save, and change GUI scale. Each panel should
+8. Use `/tu hud` to drag all three previews, save, and change GUI scale. Each panel should
    stay on screen. Reset positions from the HUD tab.
 9. In The End, set a small threshold you can test. Observe Endermites, reach the
    threshold, and confirm green text and one title. Kill enough to stay below the
@@ -319,6 +410,15 @@ duration, randomized click scheduling, and old-settings migration. They do not s
 13. Adjust title sliders, test the color/sound/position preview, save, and then
     verify that Cancel discards later slider edits. Reopen ordinary inventories
     with all trackers stopped and check for any repeated pause.
+
+14. Rebind the book shortcut in Controls, reopen the learned Anvil menu, and verify
+    the new key works and the previous key is inactive. Repeat with a mouse button.
+15. Start a gemstone session. Check a real pristine proc against its Flawed amount,
+    then mixed gemstone types against each corresponding Flawless Bazaar price.
+16. Enable glossy, save a real notification format, verify quantities 1 and 2, and
+    confirm player chat, transfers, paused sessions, and disabled glossy add nothing.
+17. Open E: verify the reset button appears and resets the hourly-rate window
+    while retaining totals; close E and open a chest: no reset button.
 
 Live Hypixel acceptance requires an authenticated Minecraft session; the headless
 build environment cannot verify actual server-side notification timing.

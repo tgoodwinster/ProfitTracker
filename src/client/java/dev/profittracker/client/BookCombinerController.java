@@ -14,6 +14,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
@@ -88,6 +89,11 @@ public final class BookCombinerController {
         });
         ScreenMouseEvents.allowMouseClick(screen).register((current, click) -> {
             if (learning) { select(menu, click); return false; }
+            if (toggle.matchesMouse(click)) {
+                if (running()) stop("Stopped");
+                else start(menu);
+                return false;
+            }
             if (running()) { stop("Stopped by mouse input"); return false; }
             return true;
         });
@@ -230,6 +236,10 @@ public final class BookCombinerController {
     }
     boolean running() { return combiner != null && combiner.running(); }
     String keyName() { return toggle.getTranslatedKeyMessage().getString(); }
+    void openKeybinds(Screen parent) {
+        var client = Minecraft.getInstance();
+        client.gui.setScreen(new KeyBindsScreen(parent, client.options));
+    }
 
     private void render(ContainerScreen screen, GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
