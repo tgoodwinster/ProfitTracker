@@ -11,13 +11,18 @@ class GemMessagesTest {
         var amethyst = GemMessages.pristine("§d§lPRISTINE! §r§fYou found §r§a❈ Flawed Amethyst Gemstone §r§8x16§r§f!").orElseThrow();
         assertEquals(Gemstone.AMETHYST, amethyst.gemstone());
         assertEquals(16, amethyst.flawed());
+        var privateIcon = GemMessages.pristine("PRISTINE! You found \uE053 Flawed Jade Gemstone x20!").orElseThrow();
+        assertEquals(Gemstone.JADE, privateIcon.gemstone());
+        assertEquals(20, privateIcon.flawed());
     }
 
     @Test void acceptsKnownGemTypesAndStrictCommaQuantities() {
         for (var gemstone : Gemstone.values()) {
-            var gain = GemMessages.pristine("PRISTINE! You found a Flawed " + gemstone.name() + " Gemstone (x1,024)!").orElseThrow();
+            var gain = GemMessages.pristine("PRISTINE! You found \uE053 Flawed " + gemstone.name() + " Gemstone x1,024!").orElseThrow();
             assertEquals(gemstone, gain.gemstone());
             assertEquals(1_024, gain.flawed());
+            assertEquals(gain, GemMessages.pristine("PRISTINE! You found a Flawed "
+                    + gemstone.name() + " Gemstone (x1,024)!").orElseThrow());
         }
     }
 

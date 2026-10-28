@@ -23,6 +23,11 @@ public final class SettingsStore {
             var json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
             // Preserve the old fixed delay as the minimum, and add a 500 ms range on upgrade.
             if (json.isJsonObject()) {
+                var gems = json.getAsJsonObject().get("gems");
+                if (gems != null && gems.isJsonObject() && !gems.getAsJsonObject().has("timerModeVersion")) {
+                    // Apply the user's all-running-time choice to settings saved by 1.5.0 too.
+                    gems.getAsJsonObject().addProperty("miningTimeOnly", false);
+                }
                 var books = json.getAsJsonObject().get("books");
                 if (books != null && books.isJsonObject()) {
                     var profile = books.getAsJsonObject();

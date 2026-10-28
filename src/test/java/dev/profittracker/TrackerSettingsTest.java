@@ -176,7 +176,7 @@ class TrackerSettingsTest {
         var store = new SettingsStore(file);
         var settings = store.load();
         assertTrue(settings.gems.hudEnabled);
-        assertTrue(settings.gems.miningTimeOnly);
+        assertFalse(settings.gems.miningTimeOnly);
         assertFalse(settings.gems.includeGlossy);
         settings.gems.includeGlossy = true;
         settings.gems.miningTimeOnly = false;
@@ -203,6 +203,20 @@ class TrackerSettingsTest {
         assertEquals("KILL", settings.endermiteAlert.text);
         assertTrue(settings.endermiteAlert.soundEnabled);
         assertTrue(settings.customTitles.isEmpty());
+    }
+
+    @Test void oldMiningTimeDefaultMigratesOnceAndPreservesLaterManualChoice() throws IOException {
+        var file = folder.resolve("timer-mode.json");
+        Files.writeString(file, "{\"gems\":{\"miningTimeOnly\":true,\"includeGlossy\":true,\"glossyFormat\":\"[MyMod] Glossy Gemstone x{amount}\"}}");
+        var store = new SettingsStore(file);
+        var settings = store.load();
+        assertFalse(settings.gems.miningTimeOnly);
+        assertTrue(settings.gems.includeGlossy);
+        assertEquals("[MyMod] Glossy Gemstone x{amount}", settings.gems.glossyFormat);
+        settings.gems.miningTimeOnly = true;
+        store.save(settings);
+        assertTrue(Files.readString(file).contains("\"timerModeVersion\": 1"));
+        assertTrue(store.load().gems.miningTimeOnly);
     }
 
     @Test void customRulesAndAllAlertChoicesRoundTrip() throws IOException {

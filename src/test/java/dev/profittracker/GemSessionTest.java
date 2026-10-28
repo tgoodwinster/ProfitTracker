@@ -55,16 +55,26 @@ class GemSessionTest {
         assertEquals(4_000, session.rateMillis());
     }
 
-    @Test void runningClockIncludesIdleButSuspendedClientTimeIsCapped() {
+    @Test void runningClockIncludesAllIdleTimeAndSlowFramesUntilPaused() {
         var session = new GemSession(); session.start(0);
         session.tick(0, true, false, false);
         session.tick(1_000, true, false, false);
         assertEquals(1_000, session.rateMillis());
         session.tick(600_000, true, false, false);
-        assertEquals(2_000, session.rateMillis());
+        assertEquals(600_000, session.rateMillis());
         session.pause(600_000);
         session.tick(601_000, true, false, false);
-        assertEquals(2_000, session.rateMillis());
+        assertEquals(600_000, session.rateMillis());
+    }
+
+    @Test void miningClockStillCapsLongUnobservedIntervalsAndDisconnectedTime() {
+        var session = new GemSession(); session.start(0);
+        session.tick(0, true, true, true);
+        session.tick(600_000, true, true, true);
+        assertEquals(1_000, session.rateMillis());
+        session.tick(601_000, false, false, true);
+        session.tick(602_000, true, true, true);
+        assertEquals(1_000, session.rateMillis());
     }
 
     @Test void rateResetClearsTimeAndItsEarningsWhileKeepingSessionTotals() {

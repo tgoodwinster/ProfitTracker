@@ -35,7 +35,9 @@ public final class GemSession {
         if (running && allowed && mining) lastActivity = now;
         boolean nowActive = running && allowed && (!miningTimeOnly || recentlyMining(now));
         if (lastTick >= 0 && eligible && allowed && active && nowActive) {
-            long delta = Math.clamp(now - lastTick, 0, 1_000);
+            long delta = Math.max(0, now - lastTick);
+            // Full-session mode is elapsed time even across slow frames; mining mode stays conservative.
+            if (miningTimeOnly) delta = Math.min(delta, 1_000);
             activeMillis += delta;
             rateMillis += delta;
         }
