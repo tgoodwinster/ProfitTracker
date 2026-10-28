@@ -64,4 +64,22 @@ class BazaarPricesTest {
         assertFalse(prices.flawless().containsKey(Gemstone.RUBY));
         assertTrue(Double.isNaN(prices.glossy()));
     }
+
+    @Test void sellOffersUseLowestBuySummaryAskRatherThanBidOrQuickStatus() {
+        var root = com.google.gson.JsonParser.parseString(response("[{\"pricePerUnit\":7,\"amount\":100}]", 100000)).getAsJsonObject();
+        var product = com.google.gson.JsonParser.parseString("""
+                {"sell_summary":[{"pricePerUnit":100,"amount":100}],
+                 "buy_summary":[{"pricePerUnit":22000,"amount":2},{"pricePerUnit":20000,"amount":10}],
+                 "quick_status":{"buyPrice":9999999}}
+                """);
+        root.getAsJsonObject("products").add("FINE_JADE_GEM", product);
+        root.getAsJsonObject("products").add("FLAWLESS_JADE_GEM", product);
+        root.getAsJsonObject("products").add("GLOSSY_GEMSTONE", product);
+        var prices = BazaarPrices.parse(root.toString(), 100000);
+        assertEquals(20_000, prices.fineOffers().get(Gemstone.JADE));
+        assertEquals(20_000, prices.flawlessOffers().get(Gemstone.JADE));
+        assertEquals(20_000, prices.glossyOffer());
+        assertEquals(100, prices.flawless().get(Gemstone.JADE));
+        assertEquals(7, prices.coal());
+    }
 }

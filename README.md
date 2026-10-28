@@ -51,92 +51,110 @@ pauses the session. Sessions are intentionally not saved to disk.
 The timer counts running time in the Crystal Hollows with no menu open. It includes
 idle time; it does not guess how much time you actually spent swinging a pickaxe.
 
-### Pristine gemstone profit tracker
+### Gemstone profit tracker
 
-Open `/tu gems` and **Start / resume gemstone session**. This session is independent
-of coal and starts paused. Its movable HUD shows estimated total coins, estimated
-coins per hour, pristine proc count, Flawed gemstone count, optional glossy count,
-and the hourly-rate timer. The rate shows `--` until at least one second has
-accumulated. Hiding the HUD does not pause a running session.
+Open `/tu gems` and **Start / resume gemstone session**. Coal and gemstone sessions
+are independent and start paused. The movable gemstone HUD uses four short lines:
 
-Only **server pristine messages** are tallied, for example:
+```text
+Gemstones | 12:34
+23.4m/h | 8.12m total
+38.3k flawed eq | 5 glossy
+Fine NPC | 3m avg
+```
+
+Numbers use truncated `k`/`m`/`b` suffixes. The display keeps total estimated coins
+separate from the recent hourly rate. Optional glossy counts share the material
+line rather than adding more HUD rows. `/tu hud` moves the panel.
+
+**Coins/hour uses a rolling three-minute average**, adjustable from 1–10 minutes
+with the slider in `/tu gems`. It waits for a full running-time window after
+starting or resetting, showing a warmup countdown instead of projecting the first
+proc into an enormous hourly figure. After warmup, only gains in the latest window
+contribute to the rate; older gains remain in the session total. The rolling
+history uses at most 601 one-second buckets. Hiding the HUD does not pause tracking.
+
+#### Observed materials and best selling route
+
+Server pristine messages supply their actual Flawed quantity, for example:
 
 ```text
 PRISTINE! You found  Flawed Jade Gemstone x20!
 ```
 
-Minecraft formatting and gemstone icons, including the private-use `` icon, are handled. The **amount** is tallied,
-not just the number of messages. Each of the 12 supported gemstone types uses its
-own live Bazaar **Flawless** instant-sell bid:
+Formatting and gemstone icons are handled for all 12 gemstone types. The tracker
+also reads **Rough gemstone gains from individual sack hover lines** while mining.
+It ignores the aggregate `[Sacks] +N items` total, missing/truncated details, and
+ambiguous gemstone-withdrawal batches. Flawed sack entries are ignored because
+pristine already accounts for them. Inventory stock, compaction, local pristine
+echoes, and ordinary player chat never add gemstone earnings. Missing messages
+are not reconstructed. Rough sack gains require mining evidence within ten seconds,
+a closed menu, and the transfer quarantine described below.
+
+For **each gemstone type**, compare these live gross values per Flawed equivalent:
 
 ```text
-pristine value = flawed quantity / 6,400 × flawless price
-6,400 flawed = 80 fine × 80 flawed per fine
+Fine NPC:             Fine NPC price / 80
+Fine Bazaar sell offer: Fine offer price / 80
+Flawless sell offer:    Flawless offer price / 6,400
 ```
 
-Fractional flawless equivalents are retained; small procs are never rounded down
-to zero whole flawless gems. This estimates **pristine gains**, not all gemstone
-mining income: ordinary Rough drops, inventory contents, compaction, transfers,
-and aggregate sack totals are not added. Local pristine echoes and ordinary player
-chat are excluded, so the same proc is not counted again when displayed by a mod.
-Missing messages are not reconstructed. Required prices that are missing/expired
-show **unavailable** while counts continue. Prices use the existing background
-Bazaar fetch, before tax and crafting costs, with no extra API key or per-message
-network requests.
+The highest available route wins independently for each type; the HUD shows the
+route when all tracked types use the same one, otherwise `Best sales`. NPC prices
+come from Hypixel's public items resource, including the different prices for
+different gemstones. Bazaar sell offers use the lowest existing ask in
+`buy_summary`, rather than instant-sell bids or a rounded market average. Glossy
+gemstones use their own Bazaar sell-offer price. Rough amounts convert at 80 Rough
+per Flawed, preserving fractions rather than discarding incomplete crafts.
 
-**Timer** defaults to **Running session**, as requested: it includes all connected
-SkyBlock time while the session is running, including idle time, menus, and slow
-frames. Updating from 1.5.0 also switches its old saved mining-time default to this
-mode once; later manual choices are preserved. Pause the session to stop the clock.
+These are **estimated values before Bazaar taxes, listing fees, and crafting
+costs**. A sell-offer quote is not a guaranteed immediate sale. Total and rolling
+values revalue using current quotes. Missing routes are omitted; when a counted
+material has no known route, the HUD shows `--` instead of inventing a price.
+Bazaar updates run once a minute on the price worker. The NPC resource refreshes
+hourly while gemstone tracking is running; its last successful result expires
+after a day. Both requests have a 15-second full-response deadline and 8 MiB size
+limits, including decompression. No API key, per-message requests, or main-thread
+network work is used.
 
-You can optionally select **Mining activity**: holding attack on stained-glass
-gemstone blocks/panes or receiving a pristine gain supplies activity, with a
-two-second idle grace period. Menus and idle periods after that pause this optional
-timer, and unobserved long ticks add at most one second. Neither mode counts time
-disconnected from SkyBlock. Disconnecting pauses the session; resume it from
-`/tu gems`. Counts and time are kept only for the current game process.
+**Timer** defaults to **Running session**: all connected SkyBlock time while the
+session runs, including idle time, menus, and slow frames. Pausing stops the clock
+and freezes the rolling window. Disconnecting pauses the session. The optional
+**Mining activity** mode retains its two-second idle grace and excludes menus.
+Existing timer preferences are preserved. Counts and time last for this game process.
 
-Open your **personal inventory (E)** to reveal **Reset gem timer** at the bottom
-left. It resets both the hourly-rate earnings window and its timer, retaining
-total coins, proc counts, and material counts. Old earnings therefore do not inflate
-the fresh rate. The button does not appear on the normal gameplay HUD, chest menus,
-or settings screens, and it does not move any inventory items. `/tu hud` moves the
-gemstone panel along with the other two HUDs.
+Open your **personal inventory (E)** for **Reset gem timer** at the bottom left.
+It clears the recent earnings and rate clock, then warms up a new average while
+keeping session material and coin totals. It appears only in personal inventory;
+chests, settings, and the gameplay HUD do not get a reset button.
 
 #### Optional glossy notifications
 
-Enable **Include glossy** in `/tu gems`. The default literal notification format is:
+Enable **Glossy** in `/tu gems`. The default matches SkyOcean's format:
 
 ```text
 [SkyOcean] Sack Notification | Glossy Gemstone x{amount}
 ```
 
-Both `x1` and `x2` add their actual quantity, valued at the separate live
-`GLOSSY_GEMSTONE` Bazaar bid. Upgrading from 1.5.0/1.5.1 replaces the old built-in
-notification format with this confirmed SkyOcean format; saved custom formats
-and the Include glossy toggle are preserved. To support another mod's wording, open **Glossy
-notification format**. Paste an actual line and press **Use pasted example**, or
-**Pick recent message**; an ending `x1`/`x2` is replaced with `{amount}`. Otherwise
-replace the quantity with `{amount}` yourself. Save the exact wording, prefix, and
-punctuation. Formatting, whitespace, and case are normalized; this is literal
-matching, without user-supplied regex. While enabled, matching local/system chat
-and recent glossy examples are observed, including messages generated by other
-mods. Ordinary player chat is excluded.
+`x1` and `x2` count their actual quantity. The default also accepts grouped
+SkyOcean notifications such as `Coal x40, Glossy Gemstone x2`; only the glossy
+quantity is added here. Duplicate glossy entries and malformed messages are
+ignored. Saved custom formats and the glossy toggle survive upgrades.
 
-Only positive matching notifications received during a running session, with the
-menu closed and recent gemstone mining activity, count. Startup, world changes,
-and server commands impose a five-second glossy quarantine to skip pending
-transfer notifications. Paused/disabled periods are not backfilled. Turning glossy
-off excludes its existing value and stops new glossy tallying; retained counts
-are available if you turn it back on. Rate resets apply a separate glossy baseline.
+For another mod, open **Glossy notification format**, paste a real line, and press
+**Use pasted example** or **Pick recent message**. An ending quantity becomes
+`{amount}`. Save the exact prefix and punctuation. Custom templates use literal
+matching, with normalized formatting, whitespace, and case; no user regex.
 
-The other mod's notification is a trusted input, not an authoritative mining API.
-The tracker cannot prove the origin of an arbitrary notification. Select a format
-that reports **new mining gains**, not sack withdrawals or inventory transfers;
-unknown or unmatched formats are deliberately ignored. Include glossy before
-mining, let a notification arrive, and use its exact text in the format screen if
-the default does not match. Recent messages stay in memory and clear on disconnect;
-only the format you explicitly save is persisted.
+Only positive notifications during a running session, with menus closed and
+mining evidence within ten seconds, count. This covers delayed sack notifications
+without extending the mining timer's two-second grace. Startup, world changes,
+server commands, and opening or closing menus impose a five-second sack quarantine.
+Menu quarantine leaves the running-session clock alone. Paused/disabled periods
+are not backfilled. The notification is a trusted input: select a feed for new
+mining gains, since an arbitrary local message cannot prove its item's origin.
+Recent messages stay in memory and clear on disconnect; only the saved format is
+persisted. Turning glossy off excludes its value and stops new glossy tallying.
 
 ### Endermite counter
 
@@ -419,11 +437,14 @@ glossy quantities, independent rate resets, and old-settings migration. They do 
 14. Rebind the book shortcut in Controls, reopen the learned Anvil menu, and verify
     the new key works and the previous key is inactive. Repeat with a mouse button.
 15. Start a gemstone session. Check a real pristine proc against its Flawed amount,
-    then mixed gemstone types against each corresponding Flawless Bazaar price.
+    then check each gemstone against the best normalized Fine NPC/Fine offer/Flawless offer route.
 16. Enable glossy, save a real notification format, verify quantities 1 and 2, and
     confirm player chat, transfers, paused sessions, and disabled glossy add nothing.
 17. Open E: verify the reset button appears and resets the hourly-rate window
     while retaining totals; close E and open a chest: no reset button.
+18. Let the selected average window warm up. Compare coins/h with only the latest
+    window of observed gains, wait for old gains to expire, then pause/resume.
+    Confirm abbreviations, four HUD rows, and the 1–10 minute slider.
 
 Live Hypixel acceptance requires an authenticated Minecraft session; the headless
 build environment cannot verify actual server-side notification timing.

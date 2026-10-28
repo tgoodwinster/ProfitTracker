@@ -39,7 +39,7 @@ final class HudEditorScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         mod.drawPanel(graphics, mod.coalLines(), mod.settings().coalPosition, false, true);
         mod.drawPanel(graphics, mod.endermiteLines(), mod.settings().endermitePosition, mod.endermitesAtTarget(), true);
-        mod.drawPanel(graphics, mod.gemLines(), mod.settings().gemPosition, false, true);
+        mod.drawGemPanel(graphics, true);
         graphics.centeredText(font, "Drag a HUD. Escape or Done saves.", width / 2, height - 64, 0xFFFFFFFF);
         graphics.centeredText(font, "All three trackers are shown as previews.", width / 2, height - 53, 0xFFB7C5D3);
     }

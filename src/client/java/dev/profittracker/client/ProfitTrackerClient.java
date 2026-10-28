@@ -13,6 +13,9 @@ import dev.profittracker.ChatTitleMatcher;
 import dev.profittracker.TitleTimeline;
 import dev.profittracker.GemMessages;
 import dev.profittracker.GemSession;
+import dev.profittracker.GemSackParser;
+import dev.profittracker.GemHud;
+import dev.profittracker.CompactNumbers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
@@ -87,6 +90,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     private int ticks;
     private Object lastLevel;
     private Screen pendingScreen;
+    private Screen lastGemScreen;
     private List<String> coalHudText;
     private long nextCoalHudText;
     private List<String> gemHudText;
@@ -136,17 +140,21 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         // ALLOW_GAME observes the original server component even if another mod hides sack spam.
         // Do not listen to signed player chat: players must not be able to spoof sack gains.
         ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
+            observeGemMenu(now());
             if (!overlay && inSkyBlock && gemstones.running()) {
                 GemMessages.pristine(message.getString()).ifPresent(gain -> {
                     if (gemstones.pristine(gain, now())) nextGemHudText = 0;
                 });
             }
-            if (!overlay && inHollows && Minecraft.getInstance().gui.screen() == null
+            if (!overlay && inSkyBlock && (inHollows || gemstones.running()) && Minecraft.getInstance().gui.screen() == null
                     && SackParser.clean(message.getString()).startsWith("[Sacks]")) {
                 List<String> hovers = new ArrayList<>();
                 collectHovers(message, hovers, new HashSet<>());
-                SackParser.Result result = SackParser.parse(message.getString(), hovers);
-                session.sackChange(now(), inventory(), result.delta(), result.complete());
+                if (inHollows) {
+                    SackParser.Result result = SackParser.parse(message.getString(), hovers);
+                    session.sackChange(now(), inventory(), result.delta(), result.complete());
+                }
+                if (gemstones.rough(GemSackParser.rough(message.getString(), hovers), now())) nextGemHudText = 0;
             }
             if (!overlay) receiveChat(message.getString());
             return true;
@@ -176,6 +184,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             recentChat.clear();
             pendingScreen = null;
             lastLevel = null;
+            lastGemScreen = null;
             books.disconnect();
         });
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
@@ -203,6 +212,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
 
     private void tick(Minecraft client) {
         long time = now();
+        observeGemMenu(time);
         if (client.level != lastLevel) {
             session.interrupt(time, inventory());
             targets.clear();
@@ -246,7 +256,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         boolean miningGem = gemstones.running() && inSkyBlock && client.player != null && client.gui.screen() == null && client.options.keyAttack.isDown()
                 && client.hitResult instanceof BlockHitResult hit && isGemstone(client, hit.getBlockPos());
         gemstones.tick(time, gemAllowed, miningGem, settings.gems.miningTimeOnly);
-        if (inHollows || (inSkyBlock && gemstones.running())) bazaar.refresh(time);
+        if (inHollows || (inSkyBlock && gemstones.running())) bazaar.refresh(time, gemstones.running());
         if (!settings.endermitesEnabled || !inEnd || client.player == null) {
             endermites.clear();
             titles.clearSource("endermites");
@@ -270,6 +280,14 @@ public final class ProfitTrackerClient implements ClientModInitializer {
 
     BookCombinerController books() { return books; }
     GemSession gemstones() { return gemstones; }
+
+    private void observeGemMenu(long time) {
+        Screen current = Minecraft.getInstance().gui.screen();
+        if (current != lastGemScreen) {
+            gemstones.quarantineSacks(time);
+            lastGemScreen = current;
+        }
+    }
 
     private static boolean isGemstone(Minecraft client, BlockPos position) {
         if (client.level == null) return false;
@@ -390,7 +408,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             drawPanel(graphics, endermiteLines(), settings.endermitePosition, endermites.atTarget(), false);
         }
         if (inSkyBlock && settings.gems.hudEnabled && (gemstones.running() || gemstones.procs() > 0 || gemstones.glossy() > 0)) {
-            drawPanel(graphics, gemLines(), settings.gemPosition, false, false);
+            drawGemPanel(graphics, false);
         }
     }
 
@@ -398,21 +416,12 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         long time = now();
         if (gemHudText != null && time < nextGemHudText) return gemHudText;
         nextGemHudText = time + 250;
-        var prices = bazaar.usable();
-        var total = gemstones.value(prices, settings.gems.includeGlossy, false);
-        var window = gemstones.value(prices, settings.gems.includeGlossy, true);
-        long seconds = gemstones.rateMillis() / 1_000;
-        String mode = !gemstones.running() ? "Paused: /tu gems"
-                : settings.gems.miningTimeOnly ? (gemstones.active() ? "Mining activity" : "Waiting for mining") : "Running session time";
-        gemHudText = List.of("TgoodUtils | Gemstones", mode,
-                "Est. coins: " + (total.isPresent() ? number(total.getAsDouble()) : "unavailable"),
-                "Est. coins/h: " + (window.isEmpty() || gemstones.rateMillis() < 1_000 ? "--"
-                        : number(window.getAsDouble() * 3_600_000.0 / gemstones.rateMillis())),
-                "Pristine: " + gemstones.procs() + " | Flawed: " + gemstones.flawedTotal(),
-                settings.gems.includeGlossy ? "Glossy: " + gemstones.glossy() : "Glossy: OFF",
-                String.format(Locale.ROOT, "Rate timer: %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60),
-                total.isEmpty() && prices != null ? "Missing gemstone buy orders" : bazaar.status());
+        gemHudText = GemHud.lines(gemstones, bazaar.gems(), settings.gems);
         return gemHudText;
+    }
+
+    void drawGemPanel(GuiGraphicsExtractor graphics, boolean editing) {
+        drawPanel(graphics, gemLines(), settings.gemPosition, false, editing, true);
     }
 
     List<String> coalLines() {
@@ -428,7 +437,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         coalHudText = List.of("TgoodUtils | Coal", state,
                 "Est. coins: " + (prices == null ? "unavailable" : number(coins)),
                 "Est. coins/h: " + (prices == null || hours == 0 ? "--" : number(coins / hours)),
-                "Coal: " + String.format(Locale.US, "%,d", session.coal()) + " (raw equivalent)",
+                "Coal: " + CompactNumbers.format(session.coal()) + " (raw equivalent)",
                 String.format(Locale.ROOT, "Session: %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60),
                 bazaar.status());
         return coalHudText;
@@ -451,12 +460,17 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     int panelHeight(List<String> lines) { return lines.size() * 12 + 8; }
 
     void drawPanel(GuiGraphicsExtractor graphics, List<String> lines, HudPosition position, boolean green, boolean editing) {
+        drawPanel(graphics, lines, position, green, editing, false);
+    }
+
+    private void drawPanel(GuiGraphicsExtractor graphics, List<String> lines, HudPosition position, boolean green, boolean editing, boolean gem) {
         var client = Minecraft.getInstance();
         int width = panelWidth(lines, graphics.guiWidth());
         int height = panelHeight(lines);
         int x = position.left(graphics.guiWidth(), width);
         int y = position.top(graphics.guiHeight(), height);
         graphics.fill(x, y, x + width, y + height, editing ? 0xD010151C : 0xA010151C);
+        if (gem) graphics.fill(x, y, x + width, y + 1, 0xFF69B8F0);
         if (editing) {
             graphics.fill(x, y, x + width, y + 1, 0xFF69B8F0);
             graphics.fill(x, y + height - 1, x + width, y + height, 0xFF69B8F0);
@@ -465,7 +479,8 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         }
         for (int i = 0; i < lines.size(); i++) {
             graphics.text(client.font, client.font.plainSubstrByWidth(lines.get(i), Math.max(0, width - 12)), x + 6, y + 5 + i * 12,
-                    green ? 0xFF69F09C : i == 0 ? 0xFFFFD166 : i == lines.size() - 1 ? 0xFFB7C5D3 : 0xFFF3F6FA);
+                    green || gem && i == 1 ? 0xFF69F09C : i == 0 ? (gem ? 0xFF69B8F0 : 0xFFFFD166)
+                            : i == lines.size() - 1 || gem ? 0xFFB7C5D3 : 0xFFF3F6FA);
         }
     }
 
@@ -494,6 +509,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         if (!client.isSameThread()) { client.execute(() -> systemGemNotification(component)); return; }
         var mod = instance;
         if (mod == null || !mod.inSkyBlock || !mod.settings.gems.includeGlossy) return;
+        mod.observeGemMenu(now());
         String text = ChatTitleRule.clean(component.getString());
         if (!text.toLowerCase(Locale.ROOT).contains("glossy gemstone")) return;
         mod.rememberChat(text);
@@ -555,7 +571,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         return 1;
     }
 
-    private static String number(double value) { return String.format(Locale.US, "%,.0f", value); }
+    private static String number(double value) { return CompactNumbers.format(value); }
     static long now() { return (System.nanoTime() - CLOCK_ORIGIN) / 1_000_000; }
     static int feedback(String message) {
         var player = Minecraft.getInstance().player;

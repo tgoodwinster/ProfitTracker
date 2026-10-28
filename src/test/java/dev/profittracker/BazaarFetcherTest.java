@@ -53,6 +53,16 @@ class BazaarFetcherTest {
         assertEquals(7, prices.coal());
     }
 
+    @Test void publicItemResourceUsesTheSameBoundedGzipFetcher() throws Exception {
+        server.createContext("/items", exchange -> {
+            byte[] bytes = gzip("{\"success\":true,\"items\":[{\"id\":\"FINE_JADE_GEM\",\"npc_sell_price\":19200}]}".getBytes(StandardCharsets.UTF_8));
+            exchange.getResponseHeaders().set("Content-Encoding", "gzip");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) { output.write(bytes); }
+        });
+        assertEquals(19_200, fetcher.fetchNpc(uri("/items"), Duration.ofSeconds(3)).fine().get(Gemstone.JADE));
+    }
+
     @Test void deadlineIncludesAStalledResponseBodyAndAllowsRecovery() throws Exception {
         server.createContext("/slow", exchange -> {
             exchange.sendResponseHeaders(200, 1000);

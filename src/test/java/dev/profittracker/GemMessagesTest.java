@@ -67,6 +67,35 @@ class GemMessagesTest {
         assertEquals(2, GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x2", format).orElseThrow());
     }
 
+    @Test void skyOceanNotificationsCanContainOtherSelectedItemsAndCommaQuantities() {
+        String format = GemMessages.DEFAULT_GLOSSY_FORMAT;
+        assertEquals(2, GemMessages.glossy("[SkyOcean] Sack Notification | Glossy Gemstone x2, Enchanted Glacite x8", format).orElseThrow());
+        assertEquals(1_024, GemMessages.glossy("[SkyOcean] Sack Notification | Enchanted Glacite x8, Glossy Gemstone x1,024, Rough Jade Gemstone x3,749", format).orElseThrow());
+        assertEquals(1, GemMessages.glossy("§b[SkyOcean] §7Sack Notification | Coal x40, §fGlossy Gemstone §8x1", format).orElseThrow());
+        assertTrue(GemMessages.glossy("[SkyOcean] Sack Notification | Coal x40, Rough Jade Gemstone x3,749", format).isEmpty());
+    }
+
+    @Test void skyOceanGroupedMessagesRejectDuplicateGlossyAndMalformedEntries() {
+        for (String text : new String[]{
+                "[SkyOcean] Sack Notification | Glossy Gemstone x1, Glossy Gemstone x2",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x1, 024",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x2, Coal x-3",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x2, Coal",
+                "[SkyOcean] Sack Notification | Glossy Gemstone x2, ",
+                "Player: [SkyOcean] Sack Notification | Coal x40, Glossy Gemstone x2"}) {
+            assertTrue(GemMessages.glossy(text, GemMessages.DEFAULT_GLOSSY_FORMAT).isEmpty(), text);
+        }
+    }
+
+    @Test void pastedGroupedExampleCannotLearnAnotherItemsQuantityAsGlossy() {
+        assertEquals(GemMessages.DEFAULT_GLOSSY_FORMAT,
+                GemMessages.formatFromExample("[SkyOcean] Sack Notification | Glossy Gemstone x2, Coal x40"));
+        assertEquals(GemMessages.DEFAULT_GLOSSY_FORMAT,
+                GemMessages.formatFromExample("[SkyOcean] Sack Notification | Coal x40, Glossy Gemstone x2"));
+        assertEquals("[OtherMod] Glossy Gemstone x{amount}, Coal x40",
+                GemMessages.formatFromExample("[OtherMod] Glossy Gemstone x2, Coal x40"));
+    }
+
     @Test void customizedLiteralFormatWorksAndExampleLearnsQuantity() {
         String example = "[OtherMod] Sac Notification - Glossy Gemstone x2!";
         String format = GemMessages.formatFromExample(example);

@@ -10,6 +10,14 @@ import static org.junit.jupiter.api.Assertions.*;
 class TrackerSettingsTest {
     @TempDir Path folder;
 
+    @Test void averageSliderBoundsRepairInvalidSavedValues() {
+        var settings = new GemSettings();
+        settings.averageMinutes = -1; settings.sanitize();
+        assertEquals(1, settings.averageMinutes);
+        settings.averageMinutes = 100; settings.sanitize();
+        assertEquals(10, settings.averageMinutes);
+    }
+
     @Test void firstRunUsesRequested25TargetWithoutCreatingAFile() throws IOException {
         var file = folder.resolve("profittracker.json");
         var settings = new SettingsStore(file).load();
@@ -178,13 +186,16 @@ class TrackerSettingsTest {
         assertTrue(settings.gems.hudEnabled);
         assertFalse(settings.gems.miningTimeOnly);
         assertFalse(settings.gems.includeGlossy);
+        assertEquals(3, settings.gems.averageMinutes);
         settings.gems.includeGlossy = true;
+        settings.gems.averageMinutes = 5;
         settings.gems.miningTimeOnly = false;
         settings.gems.glossyFormat = "[OtherMod] Glossy Gemstone x{amount}";
         settings.gemPosition.moveTo(180, 80, 500, 300, 200, 100);
         store.save(settings);
         var restored = store.load();
         assertTrue(restored.gems.includeGlossy);
+        assertEquals(5, restored.gems.averageMinutes);
         assertFalse(restored.gems.miningTimeOnly);
         assertEquals(settings.gems.glossyFormat, restored.gems.glossyFormat);
         assertEquals(180, restored.gemPosition.left(500, 200));

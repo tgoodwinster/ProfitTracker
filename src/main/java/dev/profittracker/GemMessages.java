@@ -13,7 +13,9 @@ public final class GemMessages {
     private static final Pattern PRISTINE = Pattern.compile(
             "^PRISTINE! You found (?:an? )?[^\\p{L}\\p{N}]{0,8}Flawed ([A-Za-z]+) Gemstone (?:x(" + COUNT + ")|\\(x(" + COUNT + ")\\))!$");
     private static final Pattern NUMBER = Pattern.compile("^" + COUNT + "$");
-    private static final Pattern EXAMPLE_AMOUNT = Pattern.compile("[x×]\\s*(" + COUNT + ")(?=[!.)\\s]*$)");
+    private static final Pattern EXAMPLE_AMOUNT = Pattern.compile("glossy gemstone [x×]\\s*(" + COUNT + ")(?=[!.)\\s]*(?:$|, ))", Pattern.CASE_INSENSITIVE);
+    private static final String SKYOCEAN_PREFIX = "[skyocean] sack notification | ";
+    private static final Pattern SKYOCEAN_ITEM = Pattern.compile("^(.+?) x(" + COUNT + ")$");
     public record Pristine(Gemstone gemstone, long flawed) { }
 
     private GemMessages() { }
@@ -41,6 +43,7 @@ public final class GemMessages {
         if (raw == null || raw.length() > 2_048 || !validGlossyFormat(template)) return OptionalLong.empty();
         String message = ChatTitleRule.clean(raw).toLowerCase(Locale.ROOT);
         String format = ChatTitleRule.clean(template).toLowerCase(Locale.ROOT);
+        if (format.equals(DEFAULT_GLOSSY_FORMAT.toLowerCase(Locale.ROOT))) return skyOceanGlossy(message);
         int token = format.indexOf("{amount}");
         String before = format.substring(0, token), after = format.substring(token + 8);
         if (!message.startsWith(before) || !message.endsWith(after) || message.length() <= before.length() + after.length()) return OptionalLong.empty();
@@ -48,9 +51,29 @@ public final class GemMessages {
         return count > 0 ? OptionalLong.of(count) : OptionalLong.empty();
     }
 
+    /** SkyOcean lists all selected positive sack changes in one comma-separated notification. */
+    private static OptionalLong skyOceanGlossy(String message) {
+        if (!message.startsWith(SKYOCEAN_PREFIX)) return OptionalLong.empty();
+        long glossy = 0;
+        // Thousands separators contain no space; item separators do.
+        for (String entry : message.substring(SKYOCEAN_PREFIX.length()).split(", ", -1)) {
+            var match = SKYOCEAN_ITEM.matcher(entry);
+            if (!match.matches()) return OptionalLong.empty();
+            if (!match.group(1).equals("glossy gemstone")) continue;
+            long count = amount(match.group(2));
+            if (glossy != 0 || count <= 0) return OptionalLong.empty();
+            glossy = count;
+        }
+        return glossy > 0 ? OptionalLong.of(glossy) : OptionalLong.empty();
+    }
+
     public static String formatFromExample(String raw) {
         String text = ChatTitleRule.clean(raw);
-        if (!text.toLowerCase(Locale.ROOT).contains("glossy gemstone")) return text;
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (lower.startsWith(SKYOCEAN_PREFIX)) {
+            return skyOceanGlossy(lower).isPresent() ? DEFAULT_GLOSSY_FORMAT : text;
+        }
+        if (!lower.contains("glossy gemstone")) return text;
         var match = EXAMPLE_AMOUNT.matcher(text);
         if (!match.find()) return text;
         return text.substring(0, match.start(1)) + "{amount}" + text.substring(match.end(1));

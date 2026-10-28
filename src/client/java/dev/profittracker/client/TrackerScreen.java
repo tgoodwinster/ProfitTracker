@@ -171,7 +171,7 @@ final class TrackerScreen extends Screen {
     }
 
     private void gemsTab() {
-        button("Gemstone HUD: " + onOff(mod.settings().gems.hudEnabled), left, top + 56, panelWidth, () -> {
+        button("HUD: " + onOff(mod.settings().gems.hudEnabled), left, top + 56, panelWidth / 2 - 4, () -> {
             mod.settings().gems.hudEnabled = !mod.settings().gems.hudEnabled;
             saveAndRefresh();
         });
@@ -184,10 +184,14 @@ final class TrackerScreen extends Screen {
             mod.gemstones().interrupt(ProfitTrackerClient.now());
             saveAndRefresh();
         });
-        button("Include glossy: " + onOff(mod.settings().gems.includeGlossy), left, top + 134, panelWidth, () -> {
+        button("Glossy: " + onOff(mod.settings().gems.includeGlossy), left + panelWidth / 2 + 4, top + 56, panelWidth / 2 - 4, () -> {
             mod.settings().gems.includeGlossy = !mod.settings().gems.includeGlossy;
             saveAndRefresh();
         });
+        var average = new SettingSlider(left, top + 134, panelWidth, 1, 10, 1, mod.settings().gems.averageMinutes,
+                n -> "Average over " + (int) n + " min", n -> mod.settings().gems.averageMinutes = (int) n);
+        average.setTooltip(Tooltip.create(Component.literal("Rolling running-session average. Warms up for a full window after starting or resetting.")));
+        addRenderableWidget(average);
         button("Glossy notification format", left, top + 160, panelWidth, () -> {
             if (saveSettings()) minecraft.gui.setScreen(new GlossyFormatScreen(mod, this));
         });
