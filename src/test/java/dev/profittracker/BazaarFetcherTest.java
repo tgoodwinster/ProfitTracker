@@ -2,6 +2,7 @@ package dev.profittracker;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -9,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,5 +76,36 @@ class BazaarFetcherTest {
             catch (IOException ignored) { /* The size limit cancels the download. */ }
         });
         assertThrows(IOException.class, () -> fetcher.fetch(uri("/huge"), Duration.ofSeconds(3)));
+    }
+
+    @Test void gzipNegotiationAndDecodingWork() throws Exception {
+        server.createContext("/gzip", exchange -> {
+            assertEquals("gzip", exchange.getRequestHeaders().getFirst("Accept-Encoding"));
+            String item = "{\"sell_summary\":[{\"amount\":100,\"pricePerUnit\":9}]}";
+            String text = "{\"success\":true,\"lastUpdated\":" + System.currentTimeMillis()
+                    + ",\"products\":{\"COAL\":" + item + ",\"ENCHANTED_COAL\":" + item
+                    + ",\"ENCHANTED_COAL_BLOCK\":" + item + "}}";
+            byte[] bytes = gzip(text.getBytes(StandardCharsets.UTF_8));
+            exchange.getResponseHeaders().set("Content-Encoding", "gzip");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) { output.write(bytes); }
+        });
+        assertEquals(9, fetcher.fetch(uri("/gzip"), Duration.ofSeconds(3)).coal());
+    }
+
+    @Test void expandedGzipResponseIsAlsoLimited() {
+        server.createContext("/bomb", exchange -> {
+            byte[] bytes = gzip(new byte[BazaarFetcher.MAX_BYTES + 1]);
+            exchange.getResponseHeaders().set("Content-Encoding", "gzip");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) { output.write(bytes); }
+        });
+        assertThrows(IOException.class, () -> fetcher.fetch(uri("/bomb"), Duration.ofSeconds(3)));
+    }
+
+    private byte[] gzip(byte[] bytes) throws IOException {
+        var output = new ByteArrayOutputStream();
+        try (var gzip = new GZIPOutputStream(output)) { gzip.write(bytes); }
+        return output.toByteArray();
     }
 }

@@ -16,7 +16,7 @@ automates mining or combat.
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.2.1.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.2.2.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -161,7 +161,8 @@ second and inspect already-loaded entities only; they do not load chunks.
 
 Bazaar connection setup, downloads, and parsing run on a separate worker, never
 the Minecraft tick/render thread. Requests have a 15-second header/body deadline
-and an 8 MB limit. The parser streams past unrelated products instead of building
+and an 8 MB limit, including expanded gzip data. Gzip compression reduces the
+download size when the API supports it. The parser streams past unrelated products instead of building
 a JSON tree of the entire market. Unchanged settings are not repeatedly rewritten.
 Settings are saved only through the GUI, not polled from disk during gameplay.
 
@@ -180,7 +181,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.2.1.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.2.2.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
