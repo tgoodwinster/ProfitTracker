@@ -16,7 +16,8 @@ public final class BookCombinerSettings {
     public String enchantment = "";
     public int inputLevel = 1;
     public int maxLevel = 5;
-    public int delayMs = 750;
+    public int minDelayMs = 750;
+    public int maxDelayMs = 1_250;
 
     public void sanitize() {
         server = server == null ? "" : server;
@@ -26,7 +27,13 @@ public final class BookCombinerSettings {
         secondIdle = secondIdle == null ? "" : secondIdle;
         outputIdle = outputIdle == null ? "" : outputIdle;
         confirmItem = confirmItem == null ? "" : confirmItem;
-        delayMs = Math.clamp(delayMs, 500, 5_000);
+        minDelayMs = Math.clamp(minDelayMs, 500, 5_000);
+        maxDelayMs = Math.clamp(maxDelayMs, 500, 5_000);
+        if (minDelayMs > maxDelayMs) {
+            int swap = minDelayMs;
+            minDelayMs = maxDelayMs;
+            maxDelayMs = swap;
+        }
         maxLevel = Math.clamp(maxLevel, 2, 10);
     }
 

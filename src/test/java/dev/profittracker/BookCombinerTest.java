@@ -26,12 +26,18 @@ class BookCombinerTest {
     private static class Server {
         final BookCombinerSettings p = profile();
         final ArrayList<BookCombiner.Cell> slots = new ArrayList<>(java.util.Collections.nCopies(90, BookCombiner.Cell.EMPTY));
-        final BookCombiner combiner = new BookCombiner(p, 0);
+        final BookCombiner combiner;
         long revision;
         final ArrayList<Long> versions = new ArrayList<>(java.util.Collections.nCopies(90, 0L));
         long now;
         boolean cursorEmpty = true;
-        Server() { update(22, new BookCombiner.Cell(null, 1, "minecraft:anvil\nAnvil")); }
+        Server() { this(750, 750, new java.util.Random(0)); }
+        Server(int min, int max, java.util.random.RandomGenerator random) {
+            p.minDelayMs = min;
+            p.maxDelayMs = max;
+            combiner = new BookCombiner(p, 0, random);
+            update(22, new BookCombiner.Cell(null, 1, "minecraft:anvil\nAnvil"));
+        }
         int click() { return combiner.tick(new BookCombiner.Snapshot(slots, revision, cursorEmpty, versions), now); }
         void update(int slot, BookCombiner.Cell item) { slots.set(slot, item); versions.set(slot, ++revision); }
         void confirm(int click) {
@@ -284,14 +290,68 @@ class BookCombinerTest {
 
     @Test void delayIsBoundedAndInvalidProfilesStayUnconfigured() {
         var p = new BookCombinerSettings();
-        p.delayMs = 1; p.maxLevel = 100;
+        p.minDelayMs = 1; p.maxDelayMs = 100_000; p.maxLevel = 100;
         p.sanitize();
-        assertEquals(500, p.delayMs);
+        assertEquals(500, p.minDelayMs);
+        assertEquals(5_000, p.maxDelayMs);
         assertEquals(10, p.maxLevel);
         assertFalse(p.configured());
         p = profile();
         assertTrue(p.configured());
         p.outputSlot = p.firstSlot;
         assertFalse(p.configured());
+    }
+
+    @Test void randomizedDelaysAreDrawnOncePerClickAndIncludeBothBounds() {
+        class Alternating implements java.util.random.RandomGenerator {
+            int draws;
+            @Override public long nextLong() { return 0; }
+            @Override public int nextInt(int origin, int bound) {
+                assertEquals(750, origin);
+                assertEquals(1_251, bound);
+                return draws++ % 2 == 0 ? origin : bound - 1;
+            }
+        }
+        var random = new Alternating();
+        var s = new Server(750, 1_250, random);
+        s.update(54, book(1)); s.update(55, book(1));
+        int[] times = {750, 2_000, 2_750, 4_000};
+        int[] slots = {54, 55, 22, 13};
+        for (int i = 0; i < times.length; i++) {
+            s.now = times[i] - 1;
+            assertEquals(-1, s.click());
+            assertEquals(i + 1, random.draws, "Polling must not resample the wait");
+            s.now++;
+            assertEquals(slots[i], s.click());
+            s.confirm(slots[i]);
+            assertEquals(-1, s.click());
+            assertEquals(i + 2, random.draws);
+        }
+        assertEquals(1, s.combiner.completed());
+    }
+
+    @Test void fullTierFiveRunWorksWithVariedDelaysAndNoCatchUpClicks() {
+        var s = new Server(500, 1_500, new java.util.Random(42));
+        for (int i = 54; i < 70; i++) s.update(i, book(1));
+        var waits = new java.util.HashSet<Long>();
+        int clicks = 0;
+        long last = 0;
+        for (int t = 0; t < 4_000 && s.combiner.running(); t++) {
+            s.now += 50;
+            int slot = s.click();
+            if (slot < 0) continue;
+            long gap = s.now - last;
+            assertTrue(gap >= 500 && gap <= 1_549, "Wait including tick rounding: " + gap);
+            waits.add(gap);
+            last = s.now;
+            clicks++;
+            s.confirm(slot);
+            assertEquals(-1, s.click());
+        }
+        assertFalse(s.combiner.running());
+        assertEquals(60, clicks);
+        assertEquals(15, s.combiner.completed());
+        assertTrue(waits.size() > 1);
+        assertEquals(1, s.slots.subList(54, 90).stream().filter(c -> book(5).equals(c)).count());
     }
 }

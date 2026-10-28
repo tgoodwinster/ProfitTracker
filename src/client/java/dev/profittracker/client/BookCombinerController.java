@@ -65,6 +65,8 @@ public final class BookCombinerController {
 
     private void attach(Screen screen) {
         if (!(screen instanceof ContainerScreen menu)) return;
+        // Unrelated menus need no input or rendering events, even when a profile has been learned.
+        if (!learning && !matches(menu)) return;
         boolean[] held = {false};
         ScreenKeyboardEvents.allowKeyPress(screen).register((current, key) -> {
             if (toggle.matches(key)) {
@@ -95,7 +97,8 @@ public final class BookCombinerController {
     void learn() {
         stop("Stopped");
         draft = new BookCombinerSettings();
-        draft.delayMs = mod.settings().books.delayMs;
+        draft.minDelayMs = mod.settings().books.minDelayMs;
+        draft.maxDelayMs = mod.settings().books.maxDelayMs;
         draft.maxLevel = mod.settings().books.maxLevel;
         learning = true;
         learningMenu = null;
@@ -185,7 +188,7 @@ public final class BookCombinerController {
             }
         }
         if (!running()) return;
-        if (client.player == null || client.gameMode == null || screen != activeMenu || !matches(activeMenu)
+        if (client.player == null || client.gameMode == null || screen != activeMenu
                 || client.player.containerMenu != activeMenu.getMenu()) { stop("Menu closed or changed"); return; }
         if (refreshInventory) {
             refreshInventory = false;
@@ -230,7 +233,6 @@ public final class BookCombinerController {
 
     private void render(ContainerScreen screen, GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
-        if (!learning && !matches(screen)) return;
         String label;
         if (learning) {
             String[] steps = {"Select FIRST input", "Select SECOND input", "Select ANVIL button", "Select OUTPUT", "Select a book in your inventory"};

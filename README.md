@@ -18,7 +18,7 @@ automates mining or combat.
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.3.0.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.4.0.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -56,7 +56,7 @@ It refreshes four times per second. Kills, despawns, and mobs leaving range lowe
 the count. World changes and disconnects clear it.
 
 The alert threshold defaults to **25**, as requested. To change it, open
-`/tu endermites` and edit **Alert threshold**. **Range** is configurable from
+`/tu endermites` and move the **Alert threshold** slider. **Range** is configurable from
 **4–128 blocks**, default **48**. Changes save when you close the screen or open
 another settings page. A larger range cannot load mobs the server hasn't sent.
 
@@ -67,9 +67,10 @@ stays up for its full duration even if you immediately start killing the mobs.
 
 **Configure title and sound** opens the shared alert editor:
 
-- **Text:** message, hex color (`#RRGGBB`), size (0.5–8×), bold, duration (0.5–15s).
-- **Sound:** on/mute, ding/bell/level-up, volume (0–100%). Minecraft's Master volume applies.
-- **Position:** horizontal/vertical percentages or a draggable title preview.
+- **Text:** message, size slider (0.5–8×), bold, duration slider (0.5–15s).
+- **Color:** red/green/blue sliders with a live swatch and hex readout.
+- **Sound:** on/mute, ding/bell/level-up, volume slider (0–100%). Minecraft's Master volume applies.
+- **Position:** horizontal/vertical percentage sliders or a draggable title preview.
 - **Test alert:** immediately preview the title and selected sound, including in menus.
 
 Save the alert settings to apply them; Cancel/Escape discards that editor's edits.
@@ -114,8 +115,9 @@ configure. It does not operate in vanilla anvils or ordinary inventories. It is
 initially unconfigured and stopped; it never starts automatically on opening a menu.
 
 1. Have unstacked books ready in your inventory and an **empty** custom Anvil menu.
-2. Open `/tu books`. **Maximum output tier** defaults to **5**. The fixed delay
-   defaults to **750 ms per click**, adjustable from **500–5000 ms**.
+2. Open `/tu books`. **Maximum output tier** defaults to **5**. Set the
+   **Minimum delay** and **Maximum delay** sliders; defaults are **750–1250 ms**.
+   Each can be adjusted from **500–5000 ms** in **50 ms** steps.
 3. Press **Learn menu slots and book**, then open your server's Anvil menu within
    60 seconds. Click the first input slot, second input slot, **anvil confirmation button**,
    output slot, and finally one single-enchantment book in **your inventory**.
@@ -146,6 +148,14 @@ formats require a server-specific change; the mod stops instead of guessing. The
 sequence is **shift-click book → shift-click book → normal-click anvil →
 shift-click output**. Additional confirmation dialogs are unsupported.
 
+A new delay is sampled uniformly from the inclusive minimum/maximum range for
+each click, including the first. It is scheduled without sleeping or blocking
+Minecraft. Raising the minimum above the maximum also raises the maximum; lowering
+the maximum below the minimum also lowers the minimum. Equal endpoints give a fixed
+delay. Old fixed-delay settings migrate to that minimum plus a 500 ms range (capped
+at 5000 ms), preserving the learned menu and book profile. Server latency or slow
+frames can extend the actual wait beyond the selected range.
+
 After each click the combiner waits up to **8 seconds** for confirmation. A missing
 or unexpected result, full inventory, held cursor item, menu/world change, disconnect,
 or manual input stops progress; it never retries a failed click. A timeout can leave
@@ -160,6 +170,10 @@ Hiding the coal HUD does not stop a running session. The **HUD** tab opens the d
 editor or restores default positions. The editor shows both previews even when a
 tracker is disabled or you are outside its island. Positions stay on screen when
 window size or GUI scale changes.
+
+Numeric settings use sliders with visible values and keyboard increments. Title
+messages and chat targets still accept text. Dragging sliders updates the preview
+or in-memory setting without writing to disk on every movement.
 
 Preferences, threshold, and positions persist locally in `config/profittracker.json`.
 They are separate from the in-memory coal session. Settings screens do not pause
@@ -213,20 +227,32 @@ the Minecraft tick/render thread. Requests have a 15-second header/body deadline
 and an 8 MB limit, including expanded gzip data. Gzip compression reduces the
 download size when the API supports it. The parser streams past unrelated products instead of building
 a JSON tree of the entire market. Unchanged settings are not repeatedly rewritten.
-Settings are saved only through the GUI, not polled from disk during gameplay.
+Settings are saved only through the mod settings screens, not when opening ordinary
+inventories or polled from disk during gameplay.
+
+Book input/render callbacks are installed only for the learned Anvil menu or
+explicit slot setup, rather than every chest-style menu. Title rendering callbacks
+are attached only when a title is active, including previews. Inactive trackers
+do not attach callbacks to each new inventory/menu. A clean-client comparison of
+80 inventory/menu openings in 1.3.0 and 1.4.0 did not reproduce a 500 ms pause;
+initialization stayed below 4 ms in both. Those cloud measurements do not identify
+the cause of a stall with another client setup.
 
 These bounds reduce avoidable work; they cannot establish what caused a specific
 freeze. If one recurs, record the approximate time, duration, mod version, allocated
 RAM, and whether the camera/UI froze or only the world stopped updating. Check
 `logs/latest.log`, the F3 memory graph, and a Java Flight Recorder profile if
-available. The mod does not change Minecraft's gameplay connection. When explicitly started,
+available. For a recurring menu-opening pause, press **F3+L** (when supported),
+open/close the affected menus during the recording, and keep the generated
+profiling archive and `logs/latest.log` to inspect the actual stalled thread.
+The mod does not change Minecraft's gameplay connection. When explicitly started,
 the book combiner sends ordinary inventory shift-clicks through Minecraft's native
 client interaction method. Public Bazaar requests use a separate HTTPS connection.
 
 ## Download verification and antivirus reports
 
 Each Actions artifact includes **SHA256SUMS.txt** beside the installable JAR. In
-PowerShell, run `Get-FileHash .\tgoodutils-1.3.0.jar -Algorithm SHA256` and compare
+PowerShell, run `Get-FileHash .\tgoodutils-1.4.0.jar -Algorithm SHA256` and compare
 it with the file's line in the manifest. This checks download integrity; a matching
 checksum is not an antivirus verdict. The archive is generated by GitHub Actions;
 there is no Windows installer. The JAR has no bundled native programs, no code
@@ -253,7 +279,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.3.0.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.4.0.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -263,7 +289,7 @@ and your own legitimate Minecraft login are needed to test on Hypixel. Unit test
 exercise compaction, initial stock, recipe-boundary attribution, delayed transfers,
 sack parsing, session controls, price failures, Endermite threshold/rearm behavior,
 config persistence, HUD/title position clamping, chat matching and debounce, alert
-duration, and old-settings migration. They do not substitute for a live-server test.
+duration, randomized click scheduling, and old-settings migration. They do not substitute for a live-server test.
 
 ### In-game acceptance check
 
@@ -287,6 +313,12 @@ duration, and old-settings migration. They do not substitute for a live-server t
     sound presets, and mute. The visual title should remain for its chosen duration.
 11. Add a Custom Title from a real cooldown message, check exact/contains matching,
     trigger it again after two seconds, then verify disabled rules stay silent.
+
+12. Set the book delay range with both sliders, check that crossing the bounds
+    keeps them ordered, and verify the maximum tier, menu profile, and range persist.
+13. Adjust title sliders, test the color/sound/position preview, save, and then
+    verify that Cancel discards later slider edits. Reopen ordinary inventories
+    with all trackers stopped and check for any repeated pause.
 
 Live Hypixel acceptance requires an authenticated Minecraft session; the headless
 build environment cannot verify actual server-side notification timing.

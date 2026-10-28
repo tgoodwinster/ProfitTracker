@@ -71,13 +71,15 @@ class TrackerSettingsTest {
         settings.books.confirmSlot = 22;
         settings.books.confirmItem = "minecraft:anvil";
         settings.books.enchantment = "skyblock:sharpness";
-        settings.books.delayMs = 1_000;
+        settings.books.minDelayMs = 1_000;
+        settings.books.maxDelayMs = 1_500;
         settings.books.firstIdle = "minecraft:barrier\nInput";
         store.save(settings);
         var restored = store.load().books;
         assertTrue(restored.configured());
         assertEquals(5, restored.maxLevel);
-        assertEquals(1_000, restored.delayMs);
+        assertEquals(1_000, restored.minDelayMs);
+        assertEquals(1_500, restored.maxDelayMs);
         assertEquals(settings.books.firstIdle, restored.firstIdle);
         assertFalse(Files.readString(folder.resolve("books.json")).contains("running"));
     }
@@ -87,9 +89,39 @@ class TrackerSettingsTest {
         Files.writeString(file, "{\"books\":null}");
         var books = new SettingsStore(file).load().books;
         assertNotNull(books);
-        assertEquals(750, books.delayMs);
+        assertEquals(750, books.minDelayMs);
+        assertEquals(1_250, books.maxDelayMs);
         assertEquals(5, books.maxLevel);
         assertFalse(books.configured());
+    }
+
+    @Test void oldFixedBookDelayMigratesWithoutLosingTheProfile() throws IOException {
+        var file = folder.resolve("fixed-delay.json");
+        Files.writeString(file, """
+                {"books":{"server":"example.net","menuTitle":"Anvil","rows":6,
+                "firstSlot":29,"secondSlot":33,"confirmSlot":22,"outputSlot":13,
+                "confirmItem":"minecraft:anvil","enchantment":"skyblock:sharpness","delayMs":1000}}
+                """);
+        var store = new SettingsStore(file);
+        var settings = store.load();
+        assertTrue(settings.books.configured());
+        assertEquals(1_000, settings.books.minDelayMs);
+        assertEquals(1_500, settings.books.maxDelayMs);
+        store.save(settings);
+        assertFalse(Files.readString(file).contains("\"delayMs\""));
+        assertEquals(1_000, store.load().books.minDelayMs);
+    }
+
+    @Test void explicitDelayRangesWinOverLegacyFieldsAndInvalidBoundsAreSorted() throws IOException {
+        var file = folder.resolve("range.json");
+        Files.writeString(file, "{\"books\":{\"delayMs\":900,\"minDelayMs\":4500,\"maxDelayMs\":1000}}");
+        var books = new SettingsStore(file).load().books;
+        assertEquals(1_000, books.minDelayMs);
+        assertEquals(4_500, books.maxDelayMs);
+        Files.writeString(file, "{\"books\":{\"delayMs\":99999}}");
+        books = new SettingsStore(file).load().books;
+        assertEquals(5_000, books.minDelayMs);
+        assertEquals(5_000, books.maxDelayMs);
     }
 
     @Test void unchangedGuiSavesDoNotRewriteTheConfigFile() throws IOException {

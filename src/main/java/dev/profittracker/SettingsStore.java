@@ -2,6 +2,7 @@ package dev.profittracker;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -19,7 +20,21 @@ public final class SettingsStore {
     public TrackerSettings load() throws IOException {
         if (!Files.exists(file)) return new TrackerSettings();
         try {
-            TrackerSettings settings = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), TrackerSettings.class);
+            var json = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            // Preserve the old fixed delay as the minimum, and add a 500 ms range on upgrade.
+            if (json.isJsonObject()) {
+                var books = json.getAsJsonObject().get("books");
+                if (books != null && books.isJsonObject()) {
+                    var profile = books.getAsJsonObject();
+                    var oldDelay = profile.get("delayMs");
+                    if (oldDelay != null && !oldDelay.isJsonNull() && !profile.has("minDelayMs") && !profile.has("maxDelayMs")) {
+                        int min = Math.clamp(oldDelay.getAsInt(), 500, 5_000);
+                        profile.addProperty("minDelayMs", min);
+                        profile.addProperty("maxDelayMs", Math.min(5_000, min + 500));
+                    }
+                }
+            }
+            TrackerSettings settings = GSON.fromJson(json, TrackerSettings.class);
             if (settings == null) throw new IllegalArgumentException("Empty configuration");
             settings.sanitize();
             return settings;

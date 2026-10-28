@@ -1,6 +1,8 @@
 package dev.profittracker;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.random.RandomGenerator;
 
 /** Deliberately paced, server-confirmed four-click cycles. No retry or catch-up loop. */
 public final class BookCombiner {
@@ -19,6 +21,7 @@ public final class BookCombiner {
     }
     private enum Stage { READY, FIRST, SECOND, CONFIRM, OUTPUT }
     private final BookCombinerSettings profile;
+    private final RandomGenerator delays;
     private Stage stage = Stage.READY;
     private boolean running = true;
     private String status = "Ready";
@@ -33,9 +36,15 @@ public final class BookCombiner {
     public static final long RESPONSE_TIMEOUT_MS = 8_000;
 
     public BookCombiner(BookCombinerSettings profile, long now) {
+        this(profile, now, ThreadLocalRandom.current());
+    }
+
+    BookCombiner(BookCombinerSettings profile, long now, RandomGenerator delays) {
         this.profile = profile;
+        this.delays = delays;
+        profile.sanitize();
         activeLevel = profile.inputLevel;
-        nextClick = now + profile.delayMs;
+        nextClick = now + nextDelay();
     }
 
     /** Returns one click slot, or -1. Menu cells must be authoritative; inventory must be reconciled after a server update. */
@@ -127,9 +136,12 @@ public final class BookCombiner {
         status = message;
         sentRevision = view.revision();
         deadline = now + RESPONSE_TIMEOUT_MS;
-        nextClick = now + profile.delayMs;
+        nextClick = now + nextDelay();
         return slot;
     }
+
+    /** Draw once per scheduled click, including the initial wait; endpoints are inclusive. */
+    private int nextDelay() { return delays.nextInt(profile.minDelayMs, profile.maxDelayMs + 1); }
 
     private boolean idleInputs(Snapshot view) {
         return idle(view, profile.firstSlot, profile.firstIdle) && idle(view, profile.secondSlot, profile.secondIdle);

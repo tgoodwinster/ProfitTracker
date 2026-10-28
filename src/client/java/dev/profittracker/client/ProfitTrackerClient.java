@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.Collections;
+import java.util.WeakHashMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -80,6 +82,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     private int displayedEndermites = -1;
     private int displayedTarget = -1;
     private BookCombinerController books;
+    private final Set<Screen> alertScreens = Collections.newSetFromMap(new WeakHashMap<>());
 
     @Override
     public void onInitializeClient() {
@@ -157,10 +160,11 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("profittracker", "alerts"), (graphics, delta) -> {
             if (Minecraft.getInstance().gui.screen() == null) renderAlert(graphics);
         });
-        ScreenEvents.AFTER_INIT.register((client, screen, width, height) ->
-                ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> {
-                    if (!(current instanceof TitlePositionScreen)) renderAlert(graphics);
-                }));
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            // Fabric resets per-screen events on init/resize. Inactive titles need no callbacks.
+            alertScreens.remove(screen);
+            if (titles.current(now()) != null) attachAlert(screen);
+        });
     }
 
     private void tick(Minecraft client) {
@@ -410,7 +414,10 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     List<String> recentMessages() { return List.copyOf(recentChat); }
 
     private void triggerAlert(AlertStyle style, boolean showTitle, String source) {
-        if (showTitle) titles.show(style, source, now());
+        if (showTitle) {
+            titles.show(style, source, now());
+            attachAlert(Minecraft.getInstance().gui.screen());
+        }
         if (style.soundEnabled && style.volume > 0) {
             var sound = switch (style.sound) {
                 case DING -> SoundEvents.EXPERIENCE_ORB_PICKUP;
@@ -423,6 +430,11 @@ public final class ProfitTrackerClient implements ClientModInitializer {
 
     void previewAlert(AlertStyle style) { triggerAlert(style, true, "preview"); }
     void clearAlert() { titles.clear(); }
+
+    private void attachAlert(Screen screen) {
+        if (screen == null || screen instanceof TitlePositionScreen || !alertScreens.add(screen)) return;
+        ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> renderAlert(graphics));
+    }
 
     private void renderAlert(GuiGraphicsExtractor graphics) {
         if (Minecraft.getInstance().gui.hud.isHidden()) return;
