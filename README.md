@@ -1,21 +1,22 @@
 # TgoodUtils
 
 A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, with coal profit
-tracking in the Crystal Hollows and a nearby Endermite counter in The End.
+tracking in the Crystal Hollows, an Endermite counter in The End, and custom chat alerts.
 No API key or server installation.
 
 The movable coal HUD shows estimated coins, coins per hour, coal mined (raw
 equivalents), and active session duration. The Endermite HUD turns green at your
-chosen threshold and can show a brief title alert. Both hide with the vanilla HUD
-and in menus, and appear only in their relevant SkyBlock areas. Nothing automates
-mining or combat.
+chosen threshold and can show a large bold title with a sound. Chat messages can
+also trigger your own configurable titles. Counter panels hide with the vanilla
+HUD and in menus, and appear only in their relevant SkyBlock areas. Nothing
+automates mining or combat.
 
 ## Download and install
 
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.1.1.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.2.0.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -26,8 +27,9 @@ Artifacts are retained for 90 days; rerun the workflow if an old download expire
 
 ## Use
 
-- `/tu` — open settings with **Coal**, **Endermites**, and **HUD** tabs.
+- `/tu` — open **Coal**, **Endermites**, **Custom Titles**, and **HUD** settings.
 - `/tu endermites` — open the Endermites settings tab directly.
+- `/tu titles` — open Custom Titles directly.
 - `/tu hud` — drag either HUD to reposition it; **Done** or **Escape** saves.
 - `/profit start` — start/resume a session. Sessions initially start paused.
 - `/profit pause` — stop tracking and freeze elapsed time, retaining confirmed gains.
@@ -46,16 +48,31 @@ idle time; it does not guess how much time you actually spent swinging a pickaxe
 
 ### Endermite counter
 
-In **The End**, the counter automatically shows **living Endermites within 48 blocks**,
-refreshing four times per second. Kills, despawns, and mobs leaving range lower the
-count. World changes and disconnects clear it.
+In **The End**, the compact HUD shows just **Endermites: count / threshold**.
+It refreshes four times per second. Kills, despawns, and mobs leaving range lower
+the count. World changes and disconnects clear it.
 
 The alert threshold defaults to **25**, as requested. To change it, open
-`/tu endermites`, enter your spawn-cap number in **Alert threshold**, and click
-**Apply threshold**. At or above that number, the counter turns green and the
-optional **Endermite target reached!** title appears for 2.5 seconds. It fires once
-per crossing, then rearms after the count stays below the target for one second.
-You can disable the title or the whole Endermite tracker independently of coal.
+`/tu endermites` and edit **Alert threshold**. **Range** is configurable from
+**4–128 blocks**, default **48**. Changes save when you close the screen or open
+another settings page. A larger range cannot load mobs the server hasn't sent.
+
+At or above the threshold, the counter turns green and the default alert displays
+a large, bold, bright-green **KILL** for **3 seconds**, accompanied by a ding.
+It fires once per crossing and rearms after a second below the threshold. A title
+stays up for its full duration even if you immediately start killing the mobs.
+
+**Configure title and sound** opens the shared alert editor:
+
+- **Text:** message, hex color (`#RRGGBB`), size (0.5–8×), bold, duration (0.5–15s).
+- **Sound:** on/mute, ding/bell/level-up, volume (0–100%). Minecraft's Master volume applies.
+- **Position:** horizontal/vertical percentages or a draggable title preview.
+- **Test alert:** immediately preview the title and selected sound, including in menus.
+
+Save the alert settings to apply them; Cancel/Escape discards that editor's edits.
+Long titles automatically shrink to fit your window. Titles respect F1. The
+Endermites tab's **Title** switch controls visual alerts; sound can be muted
+separately in the Sound page. Switching the tracker off disables both.
 
 **The client does not receive Endermite ownership or an authoritative personal
 spawn-cap counter.** This is a nearby live-mob count, not an exact count of mobs
@@ -63,6 +80,29 @@ you personally spawned. It includes other players' Endermites and omits unloaded
 or out-of-range mobs. It never estimates spawns from the number of blocks mined.
 The threshold is your chosen target, not a cap reported by the server. It is
 configurable from 0–200; **0** disables threshold alerts and green highlighting.
+
+### Custom chat titles
+
+1. Open `/tu titles` → **Add Custom Title**.
+2. Paste a **Target chat message** with Ctrl+V, or use **Pick recent message**.
+3. Choose **Contains** or **Exact** matching and whether to ignore case.
+4. Open **Configure title and sound** to choose the displayed text, color, size,
+   duration, position, noise, and volume. Use **Test alert** to check it.
+5. Save the alert, then **Save rule**. Each rule and the whole module have on/off controls.
+
+For mining cooldowns, select the actual ability-ready message from your chat and
+set its displayed title to something like **ABILITY READY**. The mod reacts to
+the received message; it does not predict cooldowns or activate the ability.
+
+Rules match literal chat text, with Minecraft formatting codes and repeated
+whitespace removed. No regex is needed. Action bars are excluded. The recent-message
+picker keeps up to 30 messages **in memory only**, clearing them on disconnect;
+only messages you explicitly save as rule targets are written to configuration.
+
+You can edit, toggle, or delete up to 50 rules. Each rule ignores duplicate triggers
+for two seconds. If several rules match, the first enabled match wins. A new alert
+replaces the current title, rather than stacking unreadable text. Alerts use local
+UI sounds and never send chat or gameplay actions to the server.
 
 ### Settings and HUD layout
 
@@ -120,7 +160,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.1.1.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.2.0.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -129,7 +169,8 @@ published class names directly, with no legacy Yarn/remapping configuration.
 and your own legitimate Minecraft login are needed to test on Hypixel. Unit tests
 exercise compaction, initial stock, recipe-boundary attribution, delayed transfers,
 sack parsing, session controls, price failures, Endermite threshold/rearm behavior,
-config persistence, and HUD position clamping. They do not substitute for a live-server test.
+config persistence, HUD/title position clamping, chat matching and debounce, alert
+duration, and old-settings migration. They do not substitute for a live-server test.
 
 ### In-game acceptance check
 
@@ -141,7 +182,7 @@ config persistence, and HUD position clamping. They do not substitute for a live
 5. Repeat with an Enchanted Mining Sack. Transfer inventory into sacks, withdraw
    coal, open menus, pause, and reset: no transfer should add mining profit.
 6. Disconnect the network/API: counts continue; prices eventually become unavailable.
-7. Open `/tu`, switch all three tabs, and change preferences. Reopen the screen and
+7. Open `/tu`, switch all four tabs, and change preferences. Reopen the screen and
    restart the client to check they persist.
 8. Use `/tu hud` to drag both previews, save, and change GUI scale. Each panel should
    stay on screen. Reset positions from the HUD tab.
@@ -149,6 +190,10 @@ config persistence, and HUD position clamping. They do not substitute for a live
    threshold, and confirm green text and one title. Kill enough to stay below the
    threshold for a second, then reach it again: one new title. Move away and change
    islands: the nearby count should fall/clear rather than retaining old mobs.
+10. Preview Endermite alerts: check large bold text, color, size, drag position,
+    sound presets, and mute. The visual title should remain for its chosen duration.
+11. Add a Custom Title from a real cooldown message, check exact/contains matching,
+    trigger it again after two seconds, then verify disabled rules stay silent.
 
 Live Hypixel acceptance requires an authenticated Minecraft session; the headless
 build environment cannot verify actual server-side notification timing.

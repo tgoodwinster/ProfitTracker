@@ -1,16 +1,35 @@
 package dev.profittracker;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.UUID;
+
 /** Small, local-only configuration. A target of zero disables threshold alerts. */
 public final class TrackerSettings {
     public boolean coalHudEnabled = true;
     public boolean endermitesEnabled = true;
     public boolean endermiteTitle = true;
     public int endermiteTarget = 25;
+    public int endermiteRange = 48;
+    public AlertStyle endermiteAlert = new AlertStyle();
+    public boolean customTitlesEnabled = true;
+    public List<ChatTitleRule> customTitles = new ArrayList<>();
     public HudPosition coalPosition = new HudPosition(0.015, 0.08);
     public HudPosition endermitePosition = new HudPosition(0.015, 0.38);
 
     public void sanitize() {
         endermiteTarget = Math.clamp(endermiteTarget, 0, 200);
+        endermiteRange = Math.clamp(endermiteRange, 4, 128);
+        if (endermiteAlert == null) endermiteAlert = new AlertStyle();
+        endermiteAlert.sanitize();
+        if (customTitles == null) customTitles = new ArrayList<>();
+        customTitles = new ArrayList<>(customTitles.stream().filter(java.util.Objects::nonNull).limit(50).toList());
+        var ids = new HashSet<String>();
+        for (var rule : customTitles) {
+            rule.sanitize();
+            if (!ids.add(rule.id)) { rule.id = UUID.randomUUID().toString(); ids.add(rule.id); }
+        }
         if (coalPosition == null) coalPosition = new HudPosition(0.015, 0.08);
         if (endermitePosition == null) endermitePosition = new HudPosition(0.015, 0.38);
         coalPosition.sanitize();

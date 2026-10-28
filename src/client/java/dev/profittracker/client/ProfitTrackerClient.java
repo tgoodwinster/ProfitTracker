@@ -7,8 +7,13 @@ import dev.profittracker.EndermiteCounter;
 import dev.profittracker.SettingsStore;
 import dev.profittracker.TrackerSettings;
 import dev.profittracker.TrackerSettings.HudPosition;
+import dev.profittracker.AlertStyle;
+import dev.profittracker.ChatTitleRule;
+import dev.profittracker.ChatTitleMatcher;
+import dev.profittracker.TitleTimeline;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,14 +28,17 @@ import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -52,9 +60,11 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             "Lost Precursor City", "Goblin Queen's Den", "Khazad-dûm");
     private static final Set<String> END_REGIONS = Set.of("The End", "Dragon's Nest", "Void Sepulture",
             "Zealot Bruiser Hideout");
-    private static final int ENDERMITE_RADIUS = 48;
     private final CoalSession session = new CoalSession();
     private final EndermiteCounter endermites = new EndermiteCounter();
+    private final ChatTitleMatcher chatTitles = new ChatTitleMatcher();
+    private final TitleTimeline titles = new TitleTimeline();
+    private final ArrayDeque<String> recentChat = new ArrayDeque<>();
     private final BazaarClient bazaar = new BazaarClient();
     private final SettingsStore settingsStore = new SettingsStore(FabricLoader.getInstance().getConfigDir().resolve("profittracker.json"));
     private TrackerSettings settings = new TrackerSettings();
@@ -63,7 +73,6 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     private boolean inEnd;
     private int ticks;
     private Object lastLevel;
-    private long titleUntil;
     private Screen pendingScreen;
 
     @Override
@@ -90,6 +99,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                 literal("tu")
                         .executes(context -> openSettings(0))
                         .then(literal("endermites").executes(context -> openSettings(1)))
+                        .then(literal("titles").executes(context -> openSettings(2)))
                         .then(literal("hud").executes(context -> {
                             pendingScreen = new HudEditorScreen(this, null);
                             return 1;
@@ -106,6 +116,11 @@ public final class ProfitTrackerClient implements ClientModInitializer {
                 SackParser.Result result = SackParser.parse(message.getString(), hovers);
                 session.sackChange(now(), inventory(), result.delta(), result.complete());
             }
+            if (!overlay) receiveChat(message.getString());
+            return true;
+        });
+        ClientReceiveMessageEvents.ALLOW_CHAT.register((message, signed, sender, type, timestamp) -> {
+            receiveChat(message.getString());
             return true;
         });
         ClientSendMessageEvents.ALLOW_COMMAND.register(command -> {
@@ -121,12 +136,22 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             inHollows = false;
             inEnd = false;
             endermites.clear();
-            titleUntil = 0;
+            titles.clear();
+            chatTitles.clear();
+            recentChat.clear();
             pendingScreen = null;
             lastLevel = null;
         });
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
                 Identifier.fromNamespaceAndPath("profittracker", "hud"), (graphics, delta) -> render(graphics));
+        // Draw after other HUD layers. Screen previews use the matching foreground hook.
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("profittracker", "alerts"), (graphics, delta) -> {
+            if (Minecraft.getInstance().gui.screen() == null) renderAlert(graphics);
+        });
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) ->
+                ScreenEvents.afterExtract(screen).register((current, graphics, x, y, delta) -> {
+                    if (!(current instanceof TitlePositionScreen)) renderAlert(graphics);
+                }));
     }
 
     private void tick(Minecraft client) {
@@ -137,7 +162,8 @@ public final class ProfitTrackerClient implements ClientModInitializer {
             inHollows = false;
             inEnd = false;
             endermites.clear();
-            titleUntil = 0;
+            titles.clear();
+            chatTitles.clear();
             lastLevel = client.level;
         }
         if (++ticks % 20 == 0) {
@@ -165,16 +191,17 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         if (inHollows) bazaar.refresh(time);
         if (!settings.endermitesEnabled || !inEnd || client.player == null) {
             endermites.clear();
-            titleUntil = 0;
+            titles.clearSource("endermites");
         } else if (ticks % 5 == 0) {
             var nearby = client.level.getEntitiesOfClass(Endermite.class,
-                    client.player.getBoundingBox().inflate(ENDERMITE_RADIUS),
+                    client.player.getBoundingBox().inflate(settings.endermiteRange),
                     mite -> mite.isAlive() && !mite.isRemoved()
-                            && mite.distanceToSqr(client.player) <= ENDERMITE_RADIUS * ENDERMITE_RADIUS);
+                            && mite.distanceToSqr(client.player) <= settings.endermiteRange * settings.endermiteRange);
             boolean crossed = endermites.update(nearby.stream().map(Endermite::getUUID).toList(), settings.endermiteTarget, time);
-            if (crossed && settings.endermiteTitle) titleUntil = time + 2_500;
-            if (!endermites.atTarget() || !settings.endermiteTitle) titleUntil = 0;
+            if (crossed) triggerAlert(settings.endermiteAlert, settings.endermiteTitle, "endermites");
         }
+        if (!settings.endermiteTitle) titles.clearSource("endermites");
+        if (!settings.customTitlesEnabled) titles.clearSource("chat");
         // Chat closes its screen after running a command. Open ours on the following tick.
         if (pendingScreen != null) {
             client.gui.setScreen(pendingScreen);
@@ -291,13 +318,6 @@ public final class ProfitTrackerClient implements ClientModInitializer {
         if (inHollows && settings.coalHudEnabled) drawPanel(graphics, coalLines(), settings.coalPosition, false, false);
         if (inEnd && settings.endermitesEnabled) {
             drawPanel(graphics, endermiteLines(), settings.endermitePosition, endermites.atTarget(), false);
-            if (settings.endermiteTitle && titleUntil > now()) {
-                int center = graphics.guiWidth() / 2;
-                int y = graphics.guiHeight() / 4;
-                graphics.fill(center - 123, y - 6, center + 123, y + 29, 0xB010151C);
-                graphics.centeredText(client.font, "Endermite target reached!", center, y, 0xFF69F09C);
-                graphics.centeredText(client.font, "Kill Endermites to make room", center, y + 14, 0xFFFFFFFF);
-            }
         }
     }
 
@@ -319,9 +339,7 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     List<String> endermiteLines() {
         String total = settings.endermiteTarget == 0 ? Integer.toString(endermites.count())
                 : endermites.count() + " / " + settings.endermiteTarget;
-        return List.of("Endermites nearby: " + total,
-                endermites.atTarget() ? "Target reached - ready to kill" : "Living mobs within 48 blocks",
-                settings.endermiteTarget == 0 ? "Set your alert threshold in /tu" : "Includes other players' mobs");
+        return List.of("Endermites: " + total);
     }
 
     int panelWidth(List<String> lines, int screenWidth) {
@@ -352,6 +370,40 @@ public final class ProfitTrackerClient implements ClientModInitializer {
     TrackerSettings settings() { return settings; }
     boolean coalRunning() { return session.running(); }
     boolean endermitesAtTarget() { return endermites.atTarget(); }
+
+    private void receiveChat(String raw) {
+        if (Minecraft.getInstance().level == null) return;
+        String message = ChatTitleRule.clean(raw);
+        if (message.isBlank() || message.startsWith("[TgoodUtils]")) return;
+        String recent = message.length() > 512 ? message.substring(0, 512) : message;
+        if (!recent.equals(recentChat.peekFirst())) recentChat.addFirst(recent);
+        while (recentChat.size() > 30) recentChat.removeLast();
+        if (settings.customTitlesEnabled) chatTitles.match(settings.customTitles, message, now())
+                .ifPresent(rule -> triggerAlert(rule.alert, true, "chat"));
+    }
+
+    List<String> recentMessages() { return List.copyOf(recentChat); }
+
+    private void triggerAlert(AlertStyle style, boolean showTitle, String source) {
+        if (showTitle) titles.show(style, source, now());
+        if (style.soundEnabled && style.volume > 0) {
+            var sound = switch (style.sound) {
+                case DING -> SoundEvents.EXPERIENCE_ORB_PICKUP;
+                case BELL -> SoundEvents.BELL_BLOCK;
+                case LEVEL_UP -> SoundEvents.PLAYER_LEVELUP;
+            };
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0f, (float) style.volume));
+        }
+    }
+
+    void previewAlert(AlertStyle style) { triggerAlert(style, true, "preview"); }
+    void clearAlert() { titles.clear(); }
+
+    private void renderAlert(GuiGraphicsExtractor graphics) {
+        if (Minecraft.getInstance().gui.hud.isHidden()) return;
+        var active = titles.current(now());
+        if (active != null) AlertRenderer.draw(graphics, active);
+    }
 
     void toggleCoal() {
         if (session.running()) session.pause(now(), inventory());

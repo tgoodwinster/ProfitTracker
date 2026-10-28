@@ -3,7 +3,7 @@
   "id": "profittracker",
   "version": "${version}",
   "name": "TgoodUtils",
-  "description": "Coal profits, a nearby Endermite counter, and movable HUDs for Hypixel SkyBlock.",
+  "description": "Coal profits, Endermite alerts, movable HUDs, and custom chat titles for Hypixel SkyBlock.",
   "authors": ["tgoodwinster"],
   "license": "MIT",
   "environment": "client",

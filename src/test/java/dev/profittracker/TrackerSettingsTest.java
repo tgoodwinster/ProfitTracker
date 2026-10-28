@@ -89,4 +89,61 @@ class TrackerSettingsTest {
         assertEquals(0.015, settings.coalPosition.x);
         assertEquals(20, settings.endermiteTarget);
     }
+
+    @Test void oldConfigurationGainsNewAlertOptionsWithoutLosingMutedTitles() throws IOException {
+        var file = folder.resolve("old.json");
+        Files.writeString(file, "{\"endermiteTitle\":false,\"endermiteTarget\":25}");
+        var settings = new SettingsStore(file).load();
+        assertFalse(settings.endermiteTitle);
+        assertEquals(48, settings.endermiteRange);
+        assertEquals("KILL", settings.endermiteAlert.text);
+        assertTrue(settings.endermiteAlert.soundEnabled);
+        assertTrue(settings.customTitles.isEmpty());
+    }
+
+    @Test void customRulesAndAllAlertChoicesRoundTrip() throws IOException {
+        var store = new SettingsStore(folder.resolve("alerts.json"));
+        var settings = new TrackerSettings();
+        var rule = new ChatTitleRule();
+        rule.target = "Your ability is now available!";
+        rule.exact = true;
+        rule.ignoreCase = false;
+        rule.alert.text = "READY";
+        rule.alert.color = "00AAFF";
+        rule.alert.scale = 6;
+        rule.alert.seconds = 5;
+        rule.alert.sound = AlertStyle.Sound.BELL;
+        rule.alert.soundEnabled = false;
+        rule.alert.position.x = 0.25;
+        settings.endermiteRange = 80;
+        settings.customTitles.add(rule);
+        store.save(settings);
+        var saved = store.load();
+        var restored = saved.customTitles.getFirst();
+        assertEquals(80, saved.endermiteRange);
+        assertEquals(rule.id, restored.id);
+        assertTrue(restored.exact);
+        assertFalse(restored.ignoreCase);
+        assertEquals("READY", restored.alert.text);
+        assertEquals("00AAFF", restored.alert.color);
+        assertEquals(6, restored.alert.scale);
+        assertEquals(5, restored.alert.seconds);
+        assertEquals(AlertStyle.Sound.BELL, restored.alert.sound);
+        assertFalse(restored.alert.soundEnabled);
+        assertEquals(0.25, restored.alert.position.x);
+    }
+
+    @Test void brokenOptionalRuleValuesAndRangesAreRepaired() throws IOException {
+        var file = folder.resolve("alerts.json");
+        Files.writeString(file, "{\"endermiteRange\":999,\"endermiteAlert\":null,\"customTitles\":[null,{\"id\":\"same\",\"alert\":null},{\"id\":\"same\"}]}");
+        var settings = new SettingsStore(file).load();
+        assertEquals(128, settings.endermiteRange);
+        assertNotNull(settings.endermiteAlert);
+        assertEquals(2, settings.customTitles.size());
+        assertNotEquals(settings.customTitles.get(0).id, settings.customTitles.get(1).id);
+        assertNotNull(settings.customTitles.getFirst().alert);
+        settings.endermiteRange = -1;
+        settings.sanitize();
+        assertEquals(4, settings.endermiteRange);
+    }
 }

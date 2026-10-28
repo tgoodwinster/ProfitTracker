@@ -33,7 +33,7 @@ final class BazaarClient {
         worker.execute(() -> {
             try {
                 HttpRequest request = HttpRequest.newBuilder(ENDPOINT).timeout(Duration.ofSeconds(15))
-                        .header("User-Agent", "TgoodUtils/1.1.1").GET().build();
+                        .header("User-Agent", "TgoodUtils/1.2.0").GET().build();
                 HttpResponse<java.io.InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
                 try (var body = response.body()) {
                     if (response.statusCode() != 200) throw new IOException("HTTP " + response.statusCode());
