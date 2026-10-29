@@ -18,4 +18,10 @@ class CompactNumbersTest {
         assertEquals("3:04", CompactNumbers.duration(184_000));
         assertEquals("1:01:01", CompactNumbers.duration(3_661_000));
     }
+    @Test void hudSessionTimeUsesOnlyWholeHoursAndMinutes() {
+        assertEquals("0M",CompactNumbers.shortTime(59_999));
+        assertEquals("1M",CompactNumbers.shortTime(60_999));
+        assertEquals("1H 1M",CompactNumbers.shortTime(3_661_000));
+        assertEquals("2H",CompactNumbers.shortTime(7_200_000));
+    }
 }

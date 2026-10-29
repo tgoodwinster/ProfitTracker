@@ -12,6 +12,9 @@ public final class TrackerSettings {
     public boolean endermiteTitle = true;
     public int endermiteTarget = 25;
     public int endermiteRange = 48;
+    public boolean endermiteNearbyKills;
+    public java.util.Map<String, BestiaryTotal> bestiary = new java.util.LinkedHashMap<>();
+    public VisitorSettings visitors = new VisitorSettings();
     public AlertStyle endermiteAlert = new AlertStyle();
     public boolean customTitlesEnabled = true;
     public List<ChatTitleRule> customTitles = new ArrayList<>();
@@ -20,8 +23,20 @@ public final class TrackerSettings {
     public HudPosition coalPosition = new HudPosition(0.015, 0.08);
     public HudPosition endermitePosition = new HudPosition(0.015, 0.38);
     public HudPosition gemPosition = new HudPosition(0.65, 0.03);
+    public HudPosition visitorPosition = new HudPosition(0.80, 0.80);
 
     public void sanitize() {
+        if (visitors == null) visitors = new VisitorSettings();
+        visitors.sanitize();
+        if (bestiary == null) bestiary = new java.util.LinkedHashMap<>();
+        var safeBestiary = new java.util.LinkedHashMap<String, BestiaryTotal>();
+        for (var entry : bestiary.entrySet()) {
+            if (safeBestiary.size() >= 30) break;
+            if (entry.getKey() != null && entry.getKey().length() <= 120 && entry.getValue() != null) {
+                entry.getValue().sanitize(); safeBestiary.put(entry.getKey(), entry.getValue());
+            }
+        }
+        bestiary = safeBestiary;
         if (books == null) books = new BookCombinerSettings();
         books.sanitize();
         if (gems == null) gems = new GemSettings();
@@ -40,15 +55,18 @@ public final class TrackerSettings {
         if (coalPosition == null) coalPosition = new HudPosition(0.015, 0.08);
         if (endermitePosition == null) endermitePosition = new HudPosition(0.015, 0.38);
         if (gemPosition == null) gemPosition = new HudPosition(0.65, 0.03);
+        if (visitorPosition == null) visitorPosition = new HudPosition(0.80, 0.80);
         coalPosition.sanitize();
         endermitePosition.sanitize();
         gemPosition.sanitize();
+        visitorPosition.sanitize();
     }
 
     public void resetPositions() {
         coalPosition = new HudPosition(0.015, 0.08);
         endermitePosition = new HudPosition(0.015, 0.38);
         gemPosition = new HudPosition(0.65, 0.03);
+        visitorPosition = new HudPosition(0.80, 0.80);
     }
 
     /** Fractions of the available space keep the entire panel visible after a GUI scale change. */

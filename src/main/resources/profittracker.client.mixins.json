@@ -2,6 +2,6 @@
   "required": true,
   "package": "dev.profittracker.client.mixin",
   "compatibilityLevel": "JAVA_25",
-  "client": ["ContainerScreenAccessor", "ContainerUpdatesMixin", "LocalChatMixin"],
+  "client": ["ContainerScreenAccessor", "ContainerUpdatesMixin", "LocalChatMixin", "EndermiteEventsMixin"],
   "injectors": {"defaultRequire": 1}
 }

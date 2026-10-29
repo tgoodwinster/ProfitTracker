@@ -20,4 +20,9 @@ public final class CompactNumbers {
         return seconds >= 3_600 ? String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3_600, seconds / 60 % 60, seconds % 60)
                 : String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
     }
+    public static String shortTime(long millis) {
+        long minutes = Math.max(0, millis) / 60_000;
+        long hours = minutes / 60;
+        return hours == 0 ? minutes + "M" : hours + "H" + (minutes % 60 == 0 ? "" : " " + minutes % 60 + "M");
+    }
 }

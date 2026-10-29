@@ -30,7 +30,7 @@ public final class BazaarFetcher {
 
     private String fetchJson(URI endpoint, Duration timeout) throws IOException, InterruptedException {
         var request = HttpRequest.newBuilder(endpoint).timeout(timeout)
-                .header("User-Agent", "TgoodUtils/1.6.0").header("Accept-Encoding", "gzip").GET().build();
+                .header("User-Agent", "TgoodUtils/1.7.0").header("Accept-Encoding", "gzip").GET().build();
         var pending = client.sendAsync(request, HttpResponse.BodyHandlers.limiting(HttpResponse.BodyHandlers.ofByteArray(), MAX_BYTES));
         final HttpResponse<byte[]> response;
         try {

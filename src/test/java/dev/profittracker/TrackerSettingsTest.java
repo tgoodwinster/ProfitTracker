@@ -10,6 +10,27 @@ import static org.junit.jupiter.api.Assertions.*;
 class TrackerSettingsTest {
     @TempDir Path folder;
 
+    @Test void olderQueuedBackgroundSaveCannotOverwriteLaterUiSettings() throws Exception {
+        var file = folder.resolve("queued.json"); var store = new SettingsStore(file);
+        var queued = new java.util.ArrayList<Runnable>();
+        var old = new TrackerSettings(); old.endermiteTarget = 10;
+        var future = store.saveAsync(old, queued::add);
+        var latest = new TrackerSettings(); latest.endermiteTarget = 25; store.save(latest);
+        queued.getFirst().run(); future.join();
+        assertEquals(25,store.load().endermiteTarget);
+    }
+
+    @Test void visitorProgressAndBestiaryCacheSurviveReloadWithoutPrivateApiKey() throws Exception {
+        var file=folder.resolve("modules.json");var store=new SettingsStore(file);var settings=new TrackerSettings();
+        settings.visitors.enabled=true;settings.visitors.intervalSeconds=60;
+        var timer=new VisitorTimer(settings.visitors);timer.correct(2,1000);
+        var total=new BestiaryTotal();total.update(new BestiaryApiData("p","Blueberry",1234,100),1000);total.kill();
+        settings.bestiary.put("account|p",total);store.save(settings);
+        var restored=store.load();assertEquals(3,new VisitorTimer(restored.visitors).count(61000));
+        assertEquals(1235,restored.bestiary.get("account|p").total());
+        assertFalse(Files.readString(file).contains("hypixelKey"));
+    }
+
     @Test void averageSliderBoundsRepairInvalidSavedValues() {
         var settings = new GemSettings();
         settings.averageMinutes = -1; settings.sanitize();
@@ -89,7 +110,8 @@ class TrackerSettingsTest {
         assertEquals(1_000, restored.minDelayMs);
         assertEquals(1_500, restored.maxDelayMs);
         assertEquals(settings.books.firstIdle, restored.firstIdle);
-        assertFalse(Files.readString(folder.resolve("books.json")).contains("running"));
+        var bookJson = com.google.gson.JsonParser.parseString(Files.readString(folder.resolve("books.json"))).getAsJsonObject().getAsJsonObject("books");
+        assertFalse(bookJson.has("running"));
     }
 
     @Test void olderAndNullBookSettingsGainSafeDefaults() throws IOException {

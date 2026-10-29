@@ -6,3 +6,6 @@ out/
 *.iml
 .vscode/
 *.log
+**/tgoodutils-private.json
+**/tgoodutils-private-*.tmp
+.env*

@@ -4,7 +4,7 @@ A small **client-only Fabric mod for Minecraft 26.2 and Java 25**, with coal pro
 tracking in the Crystal Hollows, pristine gemstone/glossy profit tracking,
 an Endermite counter in The End, custom chat alerts,
 and a configurable book combiner for chest-style custom anvil menus on other servers too.
-No API key or server installation.
+No server installation. Mining prices need no API key; optional Bestiary totals use your own Hypixel development key.
 
 The movable coal HUD shows estimated coins, coins per hour, coal mined (raw
 equivalents), and active session duration. The Endermite HUD turns green at your
@@ -19,7 +19,7 @@ automates mining or combat.
 1. Open [GitHub Actions → Build mod](https://github.com/tgoodwinster/ProfitTracker/actions/workflows/build.yml).
 2. Select a successful run for the latest commit. Under **Artifacts**, download
    **TgoodUtils-Minecraft-26.2** (GitHub login may be required).
-3. Extract the ZIP and put **tgoodutils-1.5.1.jar** into your Minecraft `mods` folder.
+3. Extract the ZIP and put **tgoodutils-1.7.0.jar** into your Minecraft `mods` folder.
    Remove older ProfitTracker or TgoodUtils JARs first; install only one version.
 4. Install **Fabric Loader 0.20.1 or newer for Minecraft 26.2** and
    **Fabric API 0.161.0+26.2** alongside it. Launch using **Java 25**.
@@ -30,8 +30,10 @@ Artifacts are retained for 90 days; rerun the workflow if an old download expire
 
 ## Use
 
-- `/tu` — open **Coal**, **Endermites**, **Titles**, **HUD**, **Books**, and **Gems** settings.
-- `/tu endermites` — open the Endermites settings tab directly.
+- `/tu` — open the redesigned sidebar settings; it remembers your last module. Scroll within a module to see additional controls.
+- `/tu endermites` — nearby count, kills/hour, session reset, and Bestiary settings.
+- `/tu api` — enter or remove your development key in a masked local field.
+- `/tu visitors` — offline visitor capacity, interval, timer controls, and five-ping alerts.
 - `/tu titles` — open Custom Titles directly.
 - `/tu books` — configure and learn the book combiner, or open its keybind controls.
 - `/tu gems` (or `/tu gemstones`) — gemstone session, timer, and glossy settings.
@@ -158,12 +160,58 @@ persisted. Turning glossy off excludes its value and stops new glossy tallying.
 
 ### Endermite counter
 
-In **The End**, the compact HUD shows just **Endermites: count / threshold**.
-It refreshes four times per second. Kills, despawns, and mobs leaving range lower
-the count. World changes and disconnects clear it.
+In **The End**, the same compact panel shows three lines:
+
+```text
+Endermites: 20 / 25
+Kills/h: 1.2k | Total: ~123.4k
+Time: 1H 1M
+```
+
+The live count refreshes four times per second. Kills, despawns, and mobs leaving
+range lower it. **Kills/hour does not count disappearances**: it requires a server
+death status or a visibly dying/zero-health Endermite. By default the death must
+follow your hit within five seconds; a server-reported hit by someone else removes
+that attribution. Servers can omit damage ownership, so this is an observed local
+rate, not proof of final-hit credit. Optional **Nearby deaths** includes other
+players' confirmed kills; those unlinked kills never increment your personal
+Bestiary estimate. Area/world changes clear pending hit/death evidence. Session
+kills and elapsed time persist for this game process, pause outside The End or
+while the tracker is disabled, and reset with **Reset session**. The hourly rate
+warms up for one minute. Time uses whole hours/minutes, without a seconds column.
+
+#### Bestiary total and private development key
+
+Open `/tu api` (or **Add Hypixel API key** in Endermites), paste your development
+key, and Save. The field masks its text and narration. This key is needed only for
+Bestiary totals; all other modules continue to work without one.
+
+The key is stored **separately in `config/tgoodutils-private.json`**, in plain text
+with owner-only file permissions on systems supporting POSIX permissions. It is
+never included in `profittracker.json`, Git, build artifacts, or logs. **Do not
+share the private key file or your whole Minecraft instance**; share only the
+compiled mod JAR. Clearing the key removes its private file. Development keys can
+expire; the settings show a generic rejection/expiry status without revealing it.
+
+A dedicated worker calls Hypixel's official profiles API about every **five
+minutes** while the Endermite module is active in The End. The key goes only in
+the `API-Key` header, never a URL. Requests are bounded to 15 seconds and 16 MiB,
+including decompression. **Sync Bestiary** requests a refresh without opening a
+menu. No API/profile fetches run on the rendering thread.
+
+The selected profile and connected player are matched before reading the three
+Endermite-family variants; co-op members, other profiles and other mobs are not
+summed. `Total` starts from that authoritative Bestiary value and adds locally
+observed personal kills. A new API save corrects the total, including downwards,
+and clears those temporary increments. Repeated cached API data preserves the
+increments rather than knocking them back every five minutes. Hypixel controls
+when API data updates; a poll cannot force a fresh server save. `~` marks the live
+estimate. Until a valid baseline exists, it displays `--`, not a made-up lifetime
+kill count. Local kills/hour is independent of Bestiary corrections. Baselines are
+cached per account and profile; profile changes do not combine totals.
 
 The alert threshold defaults to **25**, as requested. To change it, open
-`/tu endermites` and move the **Alert threshold** slider. **Range** is configurable from
+`/tu endermites` and move the **Cap** slider. **Range** is configurable from
 **4–128 blocks**, default **48**. Changes save when you close the screen or open
 another settings page. A larger range cannot load mobs the server hasn't sent.
 
@@ -172,7 +220,7 @@ a large, bold, bright-green **KILL** for **3 seconds**, accompanied by a ding.
 It fires once per crossing and rearms after a second below the threshold. A title
 stays up for its full duration even if you immediately start killing the mobs.
 
-**Configure title and sound** opens the shared alert editor:
+**Title and sound** opens the shared alert editor:
 
 - **Text:** message, size slider (0.5–8×), bold, duration slider (0.5–15s).
 - **Color:** red/green/blue sliders with a live swatch and hex readout.
@@ -182,7 +230,7 @@ stays up for its full duration even if you immediately start killing the mobs.
 
 Save the alert settings to apply them; Cancel/Escape discards that editor's edits.
 Long titles automatically shrink to fit your window. Titles respect F1. The
-Endermites tab's **Title** switch controls visual alerts; sound can be muted
+Endermites module's **Cap alert** switch controls visual alerts; sound can be muted
 separately in the Sound page. Switching the tracker off disables both.
 
 **The client does not receive Endermite ownership or an authoritative personal
@@ -191,6 +239,41 @@ you personally spawned. It includes other players' Endermites and omits unloaded
 or out-of-range mobs. It never estimates spawns from the number of blocks mined.
 The threshold is your chosen target, not a cap reported by the server. It is
 configurable from 0–200; **0** disables threshold alerts and green highlighting.
+
+### Offline visitors timer
+
+Open `/tu visitors`, enable the timer, set your **capacity** (1–30), and set your
+own **time per visitor** with the slider (15-second steps, up to two hours).
+The interval starts **unset**: the mod does not guess which upgrades you own or
+claim an unknown visitor schedule. Set **Current visitors** to an estimated count,
+then Start/resume. The small, movable one-line HUD looks like:
+
+```text
+Visitors ~3/10 | 1H 24M
+```
+
+It is a fixed-interval estimate, not a server visitor-stock reading. Farming and
+pest speedups are deliberately ignored. **Visitors cleared** starts a fresh cycle
+from zero after you serve them. Correcting the current count or changing the
+interval starts a fresh partial interval. A full timer never banks extra visitors
+beyond your chosen capacity.
+
+**Auto outside Garden** defaults on: once armed, the timer pauses while you're in
+the Garden and resumes when you leave. It does not assume you've cleared visitors
+merely because you entered the Garden; use **Visitors cleared** yourself. Switch
+auto off for manual timing. Pause keeps partial progress. Saved wall-clock
+progress counts time while Minecraft is closed; if it fills then, the alert waits
+until you return to the matching SkyBlock account/profile. Nothing can play a
+Minecraft alert while the game is not running.
+
+At the configured full time, **five large bold title flashes and five bell pings**
+play roughly one second apart, over five seconds. A frame stall cannot dump all
+sounds at once. The alert is one burst per cycle, rearmed by correcting/resetting
+the timer. **Title and sound** configures the message, color, size, position, sound,
+and mute. The full burst's cadence is fixed; **Test 5 pings** previews it, including
+in menus. The small HUD can be hidden separately. `/tu hud` moves all four panels.
+State is written only on changes, on a background worker for automatic transitions;
+there is no per-tick configuration write.
 
 ### Custom chat titles
 
@@ -278,7 +361,7 @@ menu; the rest of the mod's counters keep their existing area restrictions.
 
 The **Coal** tab controls HUD visibility and has start/pause/reset session buttons.
 Hiding the coal HUD does not stop a running session. The **HUD** tab opens the drag
-editor or restores default positions. The editor shows all three previews even when a
+editor or restores default positions. The editor shows all four previews even when a
 tracker is disabled or you are outside its island. Positions stay on screen when
 window size or GUI scale changes.
 
@@ -317,7 +400,7 @@ It skips ambiguous intervals instead of estimating drops from Mining Fortune or 
   sack hover details, truncated notifications, unloaded ore, ground pickups, and
   gains during quarantine are deliberately not reconstructed. Disable any server
   setting that suppresses sack notifications if you want sack gains tracked.
-- Coal only is supported. Other ores, gemstones, XP, and treasure drops are ignored.
+- The coal ledger handles coal only. Gemstones use the separate tracker above; other ores, XP, and treasure drops are ignored.
 
 Prices come from the public `https://api.hypixel.net/v2/skyblock/bazaar` endpoint on
 a background thread, at most once per minute. The estimate uses the best
@@ -365,7 +448,7 @@ the personal inventory, and gemstone tracking never polls item NBT.
 ## Download verification and antivirus reports
 
 Each Actions artifact includes **SHA256SUMS.txt** beside the installable JAR. In
-PowerShell, run `Get-FileHash .\tgoodutils-1.5.1.jar -Algorithm SHA256` and compare
+PowerShell, run `Get-FileHash .\tgoodutils-1.7.0.jar -Algorithm SHA256` and compare
 it with the file's line in the manifest. This checks download integrity; a matching
 checksum is not an antivirus verdict. The archive is generated by GitHub Actions;
 there is no Windows installer. The JAR has no bundled native programs, no code
@@ -392,7 +475,7 @@ Install a Java 25 JDK, then run:
 ./gradlew build
 ```
 
-Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.5.1.jar`.
+Windows: `gradlew.bat build`. Output: `build/libs/tgoodutils-1.7.0.jar`.
 The checked-in Gradle 9.8.2 wrapper verifies its distribution SHA-256. Minecraft
 26.2 is unobfuscated; the current `net.fabricmc.fabric-loom` plugin uses Mojang's
 published class names directly, with no legacy Yarn/remapping configuration.
@@ -415,9 +498,9 @@ glossy quantities, independent rate resets, and old-settings migration. They do 
 5. Repeat with an Enchanted Mining Sack. Transfer inventory into sacks, withdraw
    coal, open menus, pause, and reset: no transfer should add mining profit.
 6. Disconnect the network/API: counts continue; prices eventually become unavailable.
-7. Open `/tu`, switch all six tabs, and change preferences. Reopen the screen and
+7. Open `/tu`, switch all seven sidebar modules, and change preferences. Reopen the screen and
    restart the client to check they persist.
-8. Use `/tu hud` to drag all three previews, save, and change GUI scale. Each panel should
+8. Use `/tu hud` to drag all four previews, save, and change GUI scale. Each panel should
    stay on screen. Reset positions from the HUD tab.
 9. In The End, set a small threshold you can test. Observe Endermites, reach the
    threshold, and confirm green text and one title. Kill enough to stay below the

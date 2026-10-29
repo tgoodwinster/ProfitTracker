@@ -14,6 +14,7 @@ public final class SettingsStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path file;
     private String lastWritten;
+    private final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
 
     public SettingsStore(Path file) { this.file = file; }
 
@@ -60,6 +61,21 @@ public final class SettingsStore {
     }
 
     public void save(TrackerSettings settings) throws IOException {
+        write(settings, revision.incrementAndGet());
+    }
+
+    public java.util.concurrent.CompletableFuture<Void> saveAsync(TrackerSettings settings, java.util.concurrent.Executor executor) {
+        // Snapshot on the client thread, write on the worker. Older queued snapshots cannot undo later UI changes.
+        var copy = GSON.fromJson(GSON.toJson(settings), TrackerSettings.class);
+        long version = revision.incrementAndGet();
+        return java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try { write(copy, version); }
+            catch (IOException ex) { throw new java.io.UncheckedIOException(ex); }
+        }, executor);
+    }
+
+    private synchronized void write(TrackerSettings settings, long version) throws IOException {
+        if (version != revision.get()) return;
         settings.sanitize();
         String serialized = GSON.toJson(settings);
         if (serialized.equals(lastWritten)) return;

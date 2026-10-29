@@ -22,12 +22,17 @@ final class AlertEditorScreen extends Screen {
     private int top;
     private int panel;
     private String error = "";
+    private final boolean burst;
 
     AlertEditorScreen(ProfitTrackerClient mod, Screen parent, AlertStyle style, Consumer<AlertStyle> save) {
+        this(mod, parent, style, save, false);
+    }
+    AlertEditorScreen(ProfitTrackerClient mod, Screen parent, AlertStyle style, Consumer<AlertStyle> save, boolean burst) {
         super(Component.literal("Alert settings"));
         this.mod = mod;
         this.parent = parent;
         this.save = save;
+        this.burst = burst;
         draft = style.copy();
     }
 
@@ -52,7 +57,9 @@ final class AlertEditorScreen extends Screen {
             case 2 -> soundPage();
             default -> positionPage();
         }
-        button("Test alert", left, top + 170, panel, () -> { if (applyFields()) mod.previewAlert(draft); });
+        button(burst ? "Test 5 pings" : "Test alert", left, top + 170, panel, () -> {
+            if (applyFields()) { if (burst) mod.previewVisitors(draft); else mod.previewAlert(draft); }
+        });
         button("Save", left, top + 202, panel / 2 - 4, () -> {
             if (!applyFields()) return;
             save.accept(draft.copy());
@@ -67,7 +74,7 @@ final class AlertEditorScreen extends Screen {
         message.setValue(draft.text);
         message.setResponder(text -> draft.text = text);
         slider(94, 0.5, 8, 0.1, draft.scale, n -> String.format(Locale.ROOT, "Text size: %.1fx", n), n -> draft.scale = n);
-        slider(120, 0.5, 15, 0.1, draft.seconds, n -> String.format(Locale.ROOT, "Duration: %.1f seconds", n), n -> draft.seconds = n);
+        if (!burst) slider(120, 0.5, 15, 0.1, draft.seconds, n -> String.format(Locale.ROOT, "Duration: %.1f seconds", n), n -> draft.seconds = n);
         button("Bold: " + (draft.bold ? "ON" : "OFF"), left, top + 146, panel, () -> {
             if (applyFields()) { draft.bold = !draft.bold; rebuildWidgets(); }
         });
@@ -137,7 +144,10 @@ final class AlertEditorScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         graphics.centeredText(font, title, width / 2, top + 6, 0xFFFFD166);
-        if (page == 0) label(graphics, "Title message", 50);
+        if (page == 0) {
+            label(graphics, "Title message", 50);
+            if (burst) label(graphics, "Five flashes, one second apart.", 125);
+        }
         else if (page == 1) {
             graphics.text(font, "Color: #" + draft.color, left, top + 149, draft.argb());
             graphics.fill(left + panel - 45, top + 142, left + panel, top + 164, draft.argb());

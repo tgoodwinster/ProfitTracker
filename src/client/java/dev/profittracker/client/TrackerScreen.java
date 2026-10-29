@@ -1,6 +1,10 @@
 package dev.profittracker.client;
 
 import dev.profittracker.ChatTitleRule;
+import dev.profittracker.CompactNumbers;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.gui.components.AbstractWidget;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -19,6 +23,13 @@ final class TrackerScreen extends Screen {
     private SettingSlider maxDelaySlider;
     private int titlesPage;
     private String error = "";
+    private int frameX, frameY, frameWidth, frameHeight, bodyTop, bodyBottom, scroll, maxScroll;
+    private record Control(AbstractWidget widget, int y) { }
+    private record Note(String text, int y) { }
+    private final List<Control> controls = new ArrayList<>();
+    private final List<Note> notes = new ArrayList<>();
+    private static final String[] NAMES = {"Coal", "Endermites", "Titles", "HUD", "Books", "Gems", "Visitors"};
+    private static final String[] HINTS = {"Observed coal profit", "Live count, kill rate and Bestiary total", "Your chat-triggered alerts", "Move your displays", "Book combining and keybinds", "Gemstone profit and average rate", "Offline visitor estimates and alerts"};
 
     TrackerScreen(ProfitTrackerClient mod, int tab) {
         super(Component.literal("TgoodUtils"));
@@ -29,30 +40,56 @@ final class TrackerScreen extends Screen {
     @Override
     protected void init() {
         minDelaySlider = maxDelaySlider = null;
-        panelWidth = Math.min(420, width - 16);
-        left = (width - panelWidth) / 2;
-        top = Math.max(5, (height - 230) / 2);
-        int gap = 4;
-        int tabWidth = (panelWidth - gap * 5) / 6;
-        String[] names = {"Coal", "Endermites", "Titles", "HUD", "Books", "Gems"};
-        for (int i = 0; i < names.length; i++) {
+        controls.clear(); notes.clear();
+        tab = Math.clamp(tab, 0, NAMES.length - 1);
+        mod.rememberTab(tab);
+        frameWidth = Math.min(640, width - 20); frameHeight = Math.min(430, height - 20);
+        frameX = (width - frameWidth) / 2; frameY = (height - frameHeight) / 2;
+        left = frameX + 112; panelWidth = frameWidth - 126;
+        bodyTop = frameY + 49; bodyBottom = frameY + frameHeight - 22; top = bodyTop - 54;
+        for (int i = 0; i < NAMES.length; i++) {
             final int selected = i;
-            var button = button(names[i], left + i * (tabWidth + gap), top + 23, tabWidth, () -> {
+            var nav = new SettingsButton(frameX + 8, frameY + 45 + i * 21, 94, NAMES[i], ignored -> {
                 if (!saveSettings()) return;
-                tab = selected;
-                rebuildWidgets();
-            });
-            button.active = tab != i;
+                tab = selected; scroll = 0; rebuildWidgets();
+            }, tab == i);
+            nav.active = tab != i; addRenderableWidget(nav);
         }
+        addRenderableWidget(new SettingsButton(frameX + 8, frameY + frameHeight - 27, 94, "Done", ignored -> onClose(), false));
+        int first = children().size();
         switch (tab) {
             case 0 -> coalTab();
             case 1 -> endermiteTab();
             case 2 -> customTitlesTab();
             case 4 -> booksTab();
             case 5 -> gemsTab();
+            case 6 -> visitorsTab();
             default -> hudTab();
         }
-        button("Done", left, top + 202, panelWidth, this::onClose);
+        for (int i = first; i < children().size(); i++) if (children().get(i) instanceof AbstractWidget widget) controls.add(new Control(widget, widget.getY()));
+        int contentBottom = controls.stream().mapToInt(c -> c.y + c.widget.getHeight()).max().orElse(bodyTop);
+        for (var note : notes) contentBottom = Math.max(contentBottom, note.y + 12);
+        maxScroll = Math.max(0, contentBottom - bodyBottom + 4);
+        layout();
+    }
+    private void layout() {
+        scroll = Math.clamp(scroll, 0, maxScroll);
+        for (var control : controls) {
+            control.widget.setY(control.y - scroll);
+            control.widget.visible = control.widget.getY() >= bodyTop && control.widget.getY() + control.widget.getHeight() <= bodyBottom;
+        }
+    }
+    @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+        if (x >= left && x < left + panelWidth + 8 && y >= bodyTop && y <= bodyBottom) {
+            scroll -= (int) Math.round(vertical * 26); layout(); return true;
+        }
+        return super.mouseScrolled(x, y, horizontal, vertical);
+    }
+    @Override public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        boolean result = super.mouseReleased(event);
+        // Rebuild linked count bounds and start/resume state after a visitor slider gesture.
+        if (tab == 6 && minecraft.gui.screen() == this) rebuildWidgets();
+        return result;
     }
 
     private void coalTab() {
@@ -68,31 +105,30 @@ final class TrackerScreen extends Screen {
     }
 
     private void endermiteTab() {
-        button("Tracker: " + onOff(mod.settings().endermitesEnabled), left, top + 54, panelWidth / 2 - 4, () -> {
-            if (!saveSettings()) return;
-            mod.settings().endermitesEnabled = !mod.settings().endermitesEnabled;
-            saveAndRefresh();
+        button("Tracker: " + onOff(mod.settings().endermitesEnabled), left, top + 54, panelWidth / 2 - 3, () -> {
+            mod.settings().endermitesEnabled = !mod.settings().endermitesEnabled; saveAndRefresh();
         });
-        button("Title: " + onOff(mod.settings().endermiteTitle), left + panelWidth / 2 + 4, top + 54, panelWidth / 2 - 4, () -> {
-            if (!saveSettings()) return;
-            mod.settings().endermiteTitle = !mod.settings().endermiteTitle;
-            saveAndRefresh();
+        button("Cap alert: " + onOff(mod.settings().endermiteTitle), left + panelWidth / 2 + 3, top + 54, panelWidth / 2 - 3, () -> {
+            mod.settings().endermiteTitle = !mod.settings().endermiteTitle; saveAndRefresh();
         });
-        addRenderableWidget(new SettingSlider(left, top + 82, panelWidth, 0, 200, 1, mod.settings().endermiteTarget,
-                n -> n == 0 ? "Alert threshold: OFF" : "Alert threshold: " + (int) n,
-                n -> mod.settings().endermiteTarget = (int) n));
-        addRenderableWidget(new SettingSlider(left, top + 110, panelWidth, 4, 128, 1, mod.settings().endermiteRange,
+        addRenderableWidget(new SettingSlider(left, top + 80, panelWidth, 0, 200, 1, mod.settings().endermiteTarget,
+                n -> n == 0 ? "Cap alert: disabled" : "Cap: " + (int) n, n -> mod.settings().endermiteTarget = (int) n));
+        addRenderableWidget(new SettingSlider(left, top + 106, panelWidth, 4, 128, 1, mod.settings().endermiteRange,
                 n -> "Range: " + (int) n + " blocks", n -> mod.settings().endermiteRange = (int) n));
-        button("Configure title and sound", left, top + 140, panelWidth, () -> {
+        button("Kill source: " + (mod.settings().endermiteNearbyKills ? "Nearby deaths" : "Your hits"), left, top + 132, panelWidth, () -> {
+            mod.settings().endermiteNearbyKills = !mod.settings().endermiteNearbyKills; mod.resetEndermiteSession(); saveAndRefresh();
+        }).setTooltip(Tooltip.create(Component.literal("Your hits counts confirmed deaths after your recent hit. Nearby deaths includes other players' kills. Neither counts mobs unloading.")));
+        button("Reset session", left, top + 158, panelWidth / 2 - 3, mod::resetEndermiteSession);
+        button("Sync Bestiary", left + panelWidth / 2 + 3, top + 158, panelWidth / 2 - 3, mod::syncBestiaryNow);
+        button(mod.bestiary().hasKey() ? "API key settings" : "Add Hypixel API key", left, top + 184, panelWidth, () -> {
+            if (saveSettings()) minecraft.gui.setScreen(new ApiKeyScreen(mod, this));
+        }).setTooltip(Tooltip.create(Component.literal(mod.bestiary().status())));
+        button("Title and sound", left, top + 210, panelWidth / 2 - 3, () -> {
             if (!saveSettings()) return;
-            minecraft.gui.setScreen(new AlertEditorScreen(mod, this, mod.settings().endermiteAlert, style -> {
-                mod.settings().endermiteAlert = style;
-                mod.saveSettings();
-            }));
+            minecraft.gui.setScreen(new AlertEditorScreen(mod, this, mod.settings().endermiteAlert, style -> { mod.settings().endermiteAlert = style; mod.saveSettings(); }));
         });
-        button("Test alert", left, top + 166, panelWidth, () -> {
-            if (saveSettings()) mod.previewAlert(mod.settings().endermiteAlert);
-        });
+        button("Test cap alert", left + panelWidth / 2 + 3, top + 210, panelWidth / 2 - 3, () -> mod.previewAlert(mod.settings().endermiteAlert));
+        notes.add(new Note(mod.bestiary().status(), top + 240));
     }
 
     private void customTitlesTab() {
@@ -197,9 +233,31 @@ final class TrackerScreen extends Screen {
         });
     }
 
+    private void visitorsTab() {
+        var v = mod.settings().visitors;
+        button("Timer: " + onOff(v.enabled), left, top + 54, panelWidth / 2 - 3, () -> { mod.toggleVisitors(); saveAndRefresh(); });
+        button("HUD: " + onOff(v.hudEnabled), left + panelWidth / 2 + 3, top + 54, panelWidth / 2 - 3, () -> { v.hudEnabled = !v.hudEnabled; saveAndRefresh(); });
+        addRenderableWidget(new SettingSlider(left, top + 80, panelWidth, 1, 30, 1, v.capacity, n -> "Capacity: " + (int)n,
+                n -> mod.reconfigureVisitors((int)n, v.intervalSeconds)));
+        addRenderableWidget(new SettingSlider(left, top + 106, panelWidth, 0, 7200, 15, v.intervalSeconds,
+                n -> n == 0 ? "Time per visitor: unset" : "Time per visitor: " + CompactNumbers.duration((long)n * 1000),
+                n -> mod.reconfigureVisitors(v.capacity, (int)n)));
+        addRenderableWidget(new SettingSlider(left, top + 132, panelWidth, 0, v.capacity, 1, mod.visitors().count(System.currentTimeMillis()),
+                n -> "Current visitors: " + (int)n, n -> mod.correctVisitors((int)n)));
+        button(v.running ? "Pause timer" : "Start / resume", left, top + 158, panelWidth / 2 - 3, () -> { mod.toggleVisitorClock(); saveAndRefresh(); }).active = v.intervalSeconds > 0 && v.enabled;
+        button("Visitors cleared", left + panelWidth / 2 + 3, top + 158, panelWidth / 2 - 3, () -> { mod.correctVisitors(0); saveAndRefresh(); });
+        button("Auto outside Garden: " + onOff(v.autoGarden), left, top + 184, panelWidth, () -> { v.autoGarden = !v.autoGarden; saveAndRefresh(); });
+        button("Full alert: " + onOff(v.alertEnabled), left, top + 210, panelWidth, () -> { v.alertEnabled = !v.alertEnabled; saveAndRefresh(); });
+        button("Title and sound", left, top + 236, panelWidth / 2 - 3, () -> {
+            if (!saveSettings()) return;
+            minecraft.gui.setScreen(new AlertEditorScreen(mod, this, v.alert, style -> { v.alert = style; mod.saveSettings(); }, true));
+        });
+        button("Test 5 pings", left + panelWidth / 2 + 3, top + 236, panelWidth / 2 - 3, mod::previewVisitors);
+        notes.add(new Note("Estimate only. Set your interval, then start.", top + 267));
+    }
+
     private Button button(String label, int x, int y, int w, Runnable action) {
-        return addRenderableWidget(Button.builder(Component.literal(label), ignored -> action.run())
-                .bounds(x, y, w, 20).build());
+        return addRenderableWidget(new SettingsButton(x, y, w, label, ignored -> action.run(), false));
     }
 
     private boolean saveSettings() {
@@ -221,33 +279,37 @@ final class TrackerScreen extends Screen {
     @Override
     public boolean isPauseScreen() { return false; }
 
-    @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        super.extractRenderState(graphics, mouseX, mouseY, delta);
-        graphics.centeredText(font, title, width / 2, top + 6, 0xFFFFD166);
-        if (tab == 0) {
-            line(graphics, "Coal profit tracking in the Crystal Hollows.", 148);
-            line(graphics, "HUD visibility does not pause your session.", 162);
-        } else if (tab == 2) {
-            if (mod.settings().customTitles.isEmpty()) line(graphics, "Add a title to match a chat message.", 116);
-            line(graphics, "Page " + (titlesPage + 1) + " / " + Math.max(1, (mod.settings().customTitles.size() + 2) / 3), 192);
-        } else if (tab == 4) {
-            var profile = mod.settings().books;
-            line(graphics, profile.configured() ? font.plainSubstrByWidth("Profile: " + profile.menuTitle + " | " + profile.enchantment, panelWidth - 6)
-                    : "Learn the empty menu, then select a book.", 50);
-            if (error.isEmpty()) line(graphics, "Random delay per click | " + mod.books().keyName() + " starts / stops.", 64);
-        } else if (tab == 3) {
-            line(graphics, "Or use /tu hud to move both counters.", 127);
-            line(graphics, "Drag a panel. Escape or Done saves it.", 142);
-        } else if (tab == 5) {
-            line(graphics, "Reset the coins/h timer from your inventory.", 188);
+    @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent key) {
+        if (key.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_DOWN || key.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_UP) {
+            scroll += (key.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_DOWN ? 1 : -1) * Math.max(26, bodyBottom - bodyTop - 24);
+            layout(); return true;
         }
-        if (!error.isEmpty()) graphics.centeredText(font, font.plainSubstrByWidth(error, panelWidth), width / 2,
-                top + (tab == 4 ? 64 : 190), 0xFFFF7777);
+        return super.keyPressed(key);
     }
 
-    private void line(GuiGraphicsExtractor graphics, String text, int y) {
-        graphics.text(font, text, left + 3, top + y, 0xFFB7C5D3);
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        graphics.fill(frameX, frameY, frameX + frameWidth, frameY + frameHeight, 0xF0151E2A);
+        graphics.fill(frameX, frameY, frameX + 106, frameY + frameHeight, 0xF0101721);
+        graphics.fill(frameX, frameY, frameX + frameWidth, frameY + 2, 0xFF75C8FF);
+        graphics.text(font, "TgoodUtils", frameX + 10, frameY + 13, 0xFFF2F6FC);
+        graphics.text(font, "Utilities", frameX + 10, frameY + 28, 0xFF7E91A5);
+        graphics.text(font, NAMES[tab], left, frameY + 12, 0xFF75C8FF);
+        graphics.text(font, font.plainSubstrByWidth(HINTS[tab], panelWidth), left, frameY + 28, 0xFF93A6BA);
+        graphics.fill(left, frameY + 42, left + panelWidth, frameY + 43, 0xFF2A394B);
+        graphics.enableScissor(left, bodyTop, left + panelWidth, bodyBottom);
+        for (var note : notes) graphics.text(font, font.plainSubstrByWidth(note.text, panelWidth - 6), left + 3, note.y - scroll, 0xFF93A6BA);
+        graphics.disableScissor();
+        super.extractRenderState(graphics, mouseX, mouseY, delta);
+        if (maxScroll > 0) {
+            int track = bodyBottom - bodyTop;
+            int thumb = Math.max(16, track * track / (track + maxScroll));
+            int y = bodyTop + (track - thumb) * scroll / maxScroll;
+            graphics.fill(left + panelWidth + 4, bodyTop, left + panelWidth + 6, bodyBottom, 0xFF273546);
+            graphics.fill(left + panelWidth + 4, y, left + panelWidth + 6, y + thumb, 0xFF75C8FF);
+            if (error.isEmpty()) graphics.text(font, "Scroll for more", left, frameY + frameHeight - 14, 0xFF70869D);
+        }
+        if (!error.isEmpty()) graphics.text(font, font.plainSubstrByWidth(error, panelWidth), left, frameY + frameHeight - 14, 0xFFFF8585);
     }
 
     private static String onOff(boolean enabled) { return enabled ? "ON" : "OFF"; }
